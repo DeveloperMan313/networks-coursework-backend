@@ -1,4 +1,5 @@
 from enum import Enum, auto
+from queue import Queue
 from random import randint
 from typing import Dict, Literal, Union
 
@@ -28,14 +29,10 @@ class PortState(Enum):
     TX_AWAIT_CTS = auto()
     TX_START_BIT = auto()
     TX_BYTE = auto()
-    TX_STOP_BIT = auto()
-    TX_END = auto()
-    RX_AWAIT_RTS = auto()
     RX_CTS = auto()
     RX_AWAIT_RXD = auto()
     RX_SYNC = auto()
     RX_BYTE = auto()
-    RX_END = auto()
 
 
 class Port:
@@ -51,7 +48,10 @@ class Port:
         self.__connected_port: Union[Port, None] = None
         self.__state = PortState.INACTIVE
         self.__timer: int = 0
-        # TODO send/receive byte buffers
+        self.__send_buffer = Queue()
+        self.__receive_buffer = Queue()
+        self.__current_byte = 0
+        self.__current_bit_mask = 1
 
     def connect(self, port: "Port"):
         if self.__connected_port:
@@ -70,8 +70,7 @@ class Port:
         if not self.__connected_port:
             return
 
-        other_pin = self.__connected_port.__pins[DTE_DTE_pin_connections[pin]]
-        other_pin |= active
+        self.__connected_port.__pins[DTE_DTE_pin_connections[pin]] |= active
 
     def __change_state(self):
         self.__timer = TPB + randint(-TIMER_MAX_ERROR, TIMER_MAX_ERROR)
@@ -84,5 +83,33 @@ class Port:
             case PortState.INACTIVE:
                 if self.__connected_port and self.__pins["DCD"]:
                     self.__state = PortState.STANDBY
+            case PortState.STANDBY:
+                if not self.__receive_buffer.empty():
+                    self.__current_byte = self.__receive_buffer.get()
+                    self.set_pin("TXD", True)
+                    self.set_pin("RTS", True)
+                    self.__state = PortState.TX_RTS
+                    return
+                if self.__pins["CTS"]:
+                    self.set_pin("RTS", True)
+                    self.__state = PortState.RX_CTS
+            case PortState.TX_RTS:
+                self.__state = PortState.TX_AWAIT_CTS
+            case PortState.TX_AWAIT_CTS:
+                if not self.__pins["CTS"]:
+                    return
+                self.set_pin("TXD", False)
+                self.__state = PortState.TX_START_BIT
+            case PortState.TX_START_BIT:
+                self.__current_bit_mask = 1
+                self.set_pin("TXD", bool(self.__current_byte & self.__current_bit_mask))
+                self.__state = PortState.TX_BYTE
+            case PortState.TX_BYTE:
+                if self.__current_bit_mask == 128:
+                    self.set_pin("RTS", False)
+                    self.__state = PortState.STANDBY
+                    return
+                self.__current_bit_mask <<= 1
+                self.set_pin("TXD", bool(self.__current_byte & self.__current_bit_mask))
             case _:  # TODO all states
                 pass
