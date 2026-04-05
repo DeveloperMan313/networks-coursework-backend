@@ -3,6 +3,8 @@ from queue import Queue
 from random import randint
 from typing import Dict, Literal, Union
 
+from loggers import phy_logger
+
 PinName = Literal["DCD", "RXD", "TXD", "DTR", "RTS", "CTS"]
 
 DTE_DTE_pin_connections: Dict[PinName, PinName] = {
@@ -17,9 +19,10 @@ TIMER_MAX_ERROR = 3
 
 
 class PC:
-    def __init__(self):
-        self.__in_port = Port()
-        self.__out_port = Port()
+    def __init__(self, name: str):
+        self.name = name
+        self.__in_port = Port(name + " in port")
+        self.__out_port = Port(name + " out port")
 
 
 class PortState(Enum):
@@ -36,7 +39,8 @@ class PortState(Enum):
 
 
 class Port:
-    def __init__(self):
+    def __init__(self, name: str):
+        self.name = name
         self.__pins: Dict[PinName, bool] = {
             "DCD": False,
             "RXD": False,
@@ -94,57 +98,66 @@ class Port:
         self.__timer = TPB + randint(-TIMER_MAX_ERROR, TIMER_MAX_ERROR)
 
         if not self.__pins["DCD"]:
-            self.__state = PortState.INACTIVE
+            self.__set_state(PortState.INACTIVE)
             return
 
         match self.__state:
             case PortState.INACTIVE:
                 if self.__pins["DCD"]:
-                    self.__state = PortState.STANDBY
+                    self.__set_state(PortState.STANDBY)
             case PortState.STANDBY:
                 if not self.__send_buffer.empty():
                     self.__current_byte = self.__send_buffer.get()
                     self.set_pin("TXD", True)
                     self.set_pin("RTS", True)
-                    self.__state = PortState.TX_RTS
+                    self.__set_state(PortState.TX_RTS)
                     return
                 if self.__pins["CTS"]:
                     self.set_pin("RTS", True)
-                    self.__state = PortState.RX_CTS
+                    self.__set_state(PortState.RX_CTS)
             case PortState.TX_RTS:
-                self.__state = PortState.TX_AWAIT_CTS
+                self.__set_state(PortState.TX_AWAIT_CTS)
             case PortState.TX_AWAIT_CTS:
                 if not self.__pins["CTS"]:
                     return
                 self.set_pin("TXD", False)
-                self.__state = PortState.TX_START_BIT
+                self.__set_state(PortState.TX_START_BIT)
             case PortState.TX_START_BIT:
                 self.__current_bit_mask = 1
                 self.set_pin("TXD", bool(self.__current_byte & self.__current_bit_mask))
-                self.__state = PortState.TX_BYTE
+                self.__set_state(PortState.TX_BYTE)
             case PortState.TX_BYTE:
                 if self.__current_bit_mask == 128:
                     self.set_pin("RTS", False)
-                    self.__state = PortState.STANDBY
+                    self.__set_state(PortState.STANDBY)
+                    self.__log_debug(f"sent byte {self.__current_byte:08b}")
                     return
                 self.__current_bit_mask <<= 1
                 self.set_pin("TXD", bool(self.__current_byte & self.__current_bit_mask))
             case PortState.RX_CTS:
-                self.__state = PortState.RX_AWAIT_RXD
+                self.__set_state(PortState.RX_AWAIT_RXD)
             case PortState.RX_AWAIT_RXD:
                 if self.__pins["RXD"]:
                     return
-                self.__state = PortState.RX_SYNC
+                self.__set_state(PortState.RX_SYNC)
             case PortState.RX_SYNC:
                 self.__current_byte = 0
                 self.__current_bit_mask = 1
                 self.__timer += TPB // 2
-                self.__state = PortState.RX_BYTE
+                self.__set_state(PortState.RX_BYTE)
             case PortState.RX_BYTE:
                 if self.__current_bit_mask == 128:
                     self.__receive_buffer.put(self.__current_byte)
                     self.set_pin("RTS", False)
-                    self.__state = PortState.STANDBY
+                    self.__set_state(PortState.STANDBY)
+                    self.__log_debug(f"received byte {self.__current_byte:08b}")
                     return
                 self.__current_byte += int(self.__pins["RXD"]) * self.__current_bit_mask
                 self.__current_bit_mask <<= 1
+
+    def __set_state(self, state: PortState):
+        self.__state = state
+        self.__log_debug(f"changed state to {state}")
+
+    def __log_debug(self, msg: object):
+        phy_logger.debug("%s: %s", self.name, msg)
