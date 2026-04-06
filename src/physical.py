@@ -16,9 +16,9 @@ DTE_DTE_pin_connections: Dict[PinName, PinName] = {
     "CTS": "RTS",
 }
 
-TPB = 16  # Ticks Per Baud
+TPB = 32  # Ticks Per Baud
 
-TIMER_MAX_ERROR = 3
+TIMER_MAX_ERROR = 1
 
 
 class PC:
@@ -92,6 +92,22 @@ class Port:
         self.__pins[pin] = active
         self.__log_debug(f"set pin {pin} to {active}")
 
+    def enqueue_send_byte(self, byte: int):
+        if not 0 <= byte <= 255:
+            raise ValueError("invalid byte")
+
+        self.__send_buffer.put(byte)
+
+    def get_received_byte(self) -> int:
+        return self.__receive_buffer.get(block=False)
+
+    def do_tick(self):
+        if self.__timer == 0:
+            self.__change_state()
+            return
+
+        self.__timer -= 1
+
     def _get_pin(self, pin: PinName) -> bool:  # must be accessible from tests
         if self.__connected_port:
             return (
@@ -130,21 +146,21 @@ class Port:
                 self.set_pin("TXD", False)
                 self.__set_state(PortState.TX_START_BIT)
             case PortState.TX_START_BIT:
-                self.__current_bit_mask = 1
-                self.set_pin("TXD", bool(self.__current_byte & self.__current_bit_mask))
                 self.__set_state(PortState.TX_BYTE)
             case PortState.TX_BYTE:
-                if self.__current_bit_mask == 128:
+                if self.__current_bit_mask == 256:
                     self.set_pin("RTS", False)
                     self.__set_state(PortState.STANDBY)
                     self.__log_debug(f"sent byte {self.__current_byte:08b}")
                     return
-                self.__current_bit_mask <<= 1
                 self.set_pin("TXD", bool(self.__current_byte & self.__current_bit_mask))
+                self.__current_bit_mask <<= 1
             case PortState.RX_CTS:
                 self.__set_state(PortState.RX_AWAIT_RXD)
+                self.__timer = 1  # high precision override
             case PortState.RX_AWAIT_RXD:
                 if self._get_pin("RXD"):
+                    self.__timer = 1  # high precision override
                     return
                 self.__set_state(PortState.RX_SYNC)
             case PortState.RX_SYNC:
@@ -153,7 +169,7 @@ class Port:
                 self.__timer += TPB // 2
                 self.__set_state(PortState.RX_BYTE)
             case PortState.RX_BYTE:
-                if self.__current_bit_mask == 128:
+                if self.__current_bit_mask == 256:
                     self.__receive_buffer.put(self.__current_byte)
                     self.set_pin("RTS", False)
                     self.__set_state(PortState.STANDBY)

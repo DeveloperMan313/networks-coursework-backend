@@ -1,6 +1,6 @@
 <mxfile host="Electron" agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) draw.io/29.6.1 Chrome/142.0.7444.265 Electron/39.5.2 Safari/537.36" version="29.6.1">
   <diagram name="Page-1" id="fCOnHW6yoNC_OKubPwKJ">
-    <mxGraphModel dx="1407" dy="803" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1100" math="0" shadow="0">
+    <mxGraphModel dx="530" dy="924" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1100" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
@@ -100,7 +100,7 @@
         <mxCell id="yjpsvXvvrqSAKndxfRyx-39" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="await RXD = 0" vertex="1">
           <mxGeometry height="30" width="80" x="600" y="440" as="geometry" />
         </mxCell>
-        <mxCell id="yjpsvXvvrqSAKndxfRyx-40" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;verticalAlign=top;rounded=0;" value="Симулируется длина сигналов: каждый сигнал длится несколько тиков со случайными задержками.&lt;div&gt;&lt;br&gt;&lt;/div&gt;&lt;div&gt;Считаем, что частота внутренних часов (тиков) в 16 раз выше БОД.&lt;/div&gt;&lt;div&gt;&lt;br&gt;&lt;/div&gt;&lt;div&gt;Т.е. каждый бит передаваемых данных держится на линии 16 тиков.&lt;/div&gt;" vertex="1">
+        <mxCell id="yjpsvXvvrqSAKndxfRyx-40" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;verticalAlign=top;rounded=0;" value="Симулируется длина сигналов: каждый сигнал длится несколько тиков со случайными задержками.&lt;div&gt;&lt;br&gt;&lt;/div&gt;&lt;div&gt;Считаем, что частота внутренних часов (тиков) в 32 раза выше БОД.&lt;/div&gt;&lt;div&gt;&lt;br&gt;&lt;/div&gt;&lt;div&gt;Т.е. каждый бит передаваемых данных держится на линии 32 тика.&lt;/div&gt;" vertex="1">
           <mxGeometry height="160" width="200" x="40" y="400" as="geometry" />
         </mxCell>
         <mxCell id="yjpsvXvvrqSAKndxfRyx-41" edge="1" parent="1" source="yjpsvXvvrqSAKndxfRyx-48" style="endArrow=classic;html=1;rounded=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;exitX=0.5;exitY=0;exitDx=0;exitDy=0;" target="yjpsvXvvrqSAKndxfRyx-1" value="">
