@@ -65,6 +65,8 @@ class Port:
             raise RuntimeError("already connected to port")
         if port.__connected_port:
             raise RuntimeError("other port already connected to port")
+        if port == self:
+            raise RuntimeError("cannot connect to self")
 
         self.__connected_port = port
         port.__connected_port = self
@@ -110,12 +112,14 @@ class Port:
 
     def _get_pin(self, pin: PinName) -> bool:  # must be accessible from tests
         if self.__connected_port:
-            return (
+            active = (
                 self.__pins[pin]
                 or self.__connected_port.__pins[DTE_DTE_pin_connections[pin]]
             )
-
-        return self.__pins[pin]
+        else:
+            active = self.__pins[pin]
+        self.__log_debug(f"read pin {pin} as {active}")
+        return active
 
     def __change_state(self):
         self.__timer = TPB + randint(-TIMER_MAX_ERROR, TIMER_MAX_ERROR)

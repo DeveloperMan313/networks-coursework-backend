@@ -34,6 +34,11 @@ class TestPort(unittest.TestCase):
         ):
             port1.connect(port3)
 
+    def test_connect_fails_when_connecting_to_self(self):
+        port1 = Port("port 1")
+        with self.assertRaisesRegex(RuntimeError, "cannot connect to self"):
+            port1.connect(port1)
+
     def test_disconnect_sets_pins_down(self):
         port1 = Port("port 1")
         port2 = Port("port 2")
@@ -58,7 +63,7 @@ class TestPort(unittest.TestCase):
         port1.connect(port2)
         byte = 0b01110100
         port1.enqueue_send_byte(byte)
-        for _ in range((TPB + TIMER_MAX_ERROR) * 25):
+        for _ in range((TPB + TIMER_MAX_ERROR) * 15):
             port1.do_tick()
             port2.do_tick()
         self.assertEqual(
