@@ -1,6 +1,6 @@
 <mxfile host="Electron" agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) draw.io/29.6.1 Chrome/142.0.7444.265 Electron/39.5.2 Safari/537.36" version="29.6.1">
   <diagram name="Страница-1" id="noBLO5nFaECuEp6z7TQx">
-    <mxGraphModel dx="3108" dy="1848" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="1654" math="0" shadow="0">
+    <mxGraphModel dx="303" dy="528" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="1654" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
@@ -253,14 +253,11 @@
             <mxPoint x="1604" y="1388" as="targetPoint" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="kDLU0YVcJZ5dW3TgMPSt-60" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;" value="&lt;div&gt;&lt;i&gt;Колесников Н.С.&lt;/i&gt;&lt;/div&gt;" vertex="1">
-          <mxGeometry height="30" width="100" x="1683" y="1486" as="geometry" />
+        <mxCell id="kDLU0YVcJZ5dW3TgMPSt-60" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;rounded=0;" value="&lt;div&gt;&lt;i style=&quot;background-color: transparent; color: light-dark(rgb(0, 0, 0), rgb(255, 255, 255));&quot;&gt;Волощук А. Д.&lt;/i&gt;&lt;/div&gt;" vertex="1">
+          <mxGeometry height="20" width="100" x="1680" y="1490" as="geometry" />
         </mxCell>
-        <mxCell id="kDLU0YVcJZ5dW3TgMPSt-61" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;" value="&lt;i&gt;Трундаев Д. В.&lt;/i&gt;" vertex="1">
-          <mxGeometry height="30" width="110" x="1680" y="1506" as="geometry" />
-        </mxCell>
-        <mxCell id="kDLU0YVcJZ5dW3TgMPSt-62" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;" value="&lt;i&gt;Волощук А. Д.&lt;/i&gt;" vertex="1">
-          <mxGeometry height="30" width="110" x="1676" y="1525" as="geometry" />
+        <mxCell id="kDLU0YVcJZ5dW3TgMPSt-61" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;rounded=0;" value="&lt;i&gt;Колесников Н. С.&lt;/i&gt;" vertex="1">
+          <mxGeometry height="20" width="100" x="1680" y="1510" as="geometry" />
         </mxCell>
         <mxCell id="I66Ii6747NRWzf5UJ8Uu-3" edge="1" parent="1" style="endArrow=none;html=1;rounded=0;" value="">
           <mxGeometry height="50" relative="1" width="50" as="geometry">
@@ -478,8 +475,8 @@
         <mxCell id="I66Ii6747NRWzf5UJ8Uu-52" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;" value="&lt;i&gt;&lt;font&gt;Утв.&lt;/font&gt;&lt;/i&gt;" vertex="1">
           <mxGeometry height="30" width="50" x="1616" y="1586" as="geometry" />
         </mxCell>
-        <mxCell id="I66Ii6747NRWzf5UJ8Uu-53" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;" value="&lt;div&gt;&lt;i&gt;Галкин В. А.&lt;/i&gt;&lt;/div&gt;" vertex="1">
-          <mxGeometry height="20" width="70" x="1695" y="1549" as="geometry" />
+        <mxCell id="I66Ii6747NRWzf5UJ8Uu-53" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;rounded=0;" value="&lt;div&gt;&lt;i&gt;Галкин В. А.&lt;/i&gt;&lt;/div&gt;" vertex="1">
+          <mxGeometry height="20" width="100" x="1680" y="1550" as="geometry" />
         </mxCell>
         <mxCell id="4NxONUN_f3xIgOyHdMCJ-2" edge="1" parent="1" style="rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.679;exitY=0.002;exitDx=0;exitDy=0;exitPerimeter=0;entryX=0.75;entryY=1;entryDx=0;entryDy=0;">
           <mxGeometry relative="1" as="geometry">
@@ -574,6 +571,9 @@
         </mxCell>
         <mxCell id="4NxONUN_f3xIgOyHdMCJ-22" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="Запись в локальное хранилище" vertex="1">
           <mxGeometry height="40" width="160" x="720" y="520" as="geometry" />
+        </mxCell>
+        <mxCell id="Cip8F4qno8xAnxvUieRH-3" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;rounded=0;" value="&lt;i&gt;Трундаев Д. В.&lt;/i&gt;" vertex="1">
+          <mxGeometry height="20" width="100" x="1680" y="1530" as="geometry" />
         </mxCell>
       </root>
     </mxGraphModel>
