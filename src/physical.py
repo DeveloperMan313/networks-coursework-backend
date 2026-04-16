@@ -1,7 +1,7 @@
 from enum import Enum, auto
 from queue import Queue
 from random import randint
-from typing import Dict, Literal, Union
+from typing import Dict, List, Literal, Type, Union
 
 from src.loggers import phy_logger
 
@@ -20,12 +20,32 @@ TPB = 32  # Ticks Per Baud
 
 TIMER_MAX_ERROR = 1
 
+PC_CNT = 3
 
-class PC:
+pc_ring: List["PC_phy"] = []
+
+
+class PC_phy:
     def __init__(self, name: str):
         self.name = name
-        self.__in_port = Port(name + " in port")
-        self.__out_port = Port(name + " out port")
+        self._in_port = Port(name + " in port")
+        self._out_port = Port(name + " out port")
+
+    def connect_in_port(self, pc: "PC_phy"):
+        self._in_port.connect(pc._out_port)
+
+    def connect_out_port(self, pc: "PC_phy"):
+        self._out_port.connect(pc._in_port)
+
+    def disconnect_in_port(self):
+        self._in_port.disconnect()
+
+    def disconnect_out_port(self):
+        self._out_port.disconnect()
+
+    def do_tick(self):
+        self._in_port.do_tick()
+        self._out_port.do_tick()
 
 
 class PortState(Enum):
@@ -190,3 +210,19 @@ class Port:
 
     def __log_debug(self, msg: object):
         phy_logger.debug("%s: %s", self.name, msg)
+
+
+def init_network(PC: Type[PC_phy]):
+    for i in range(PC_CNT):
+        pc_ring.append(PC(f"PC{i}"))
+
+    for i in range(PC_CNT):
+        prev_i = i - 1
+        next_i = (i + 1) % PC_CNT
+        pc_ring[i].connect_in_port(pc_ring[prev_i])
+        pc_ring[i].connect_out_port(pc_ring[next_i])
+
+
+def do_tick():
+    for pc in pc_ring:
+        pc.do_tick()
