@@ -28,8 +28,8 @@ pc_ring: List["PC_phy"] = []
 class PC_phy:
     def __init__(self, name: str):
         self.name = name
-        self._in_port = Port(name + " in port")
-        self._out_port = Port(name + " out port")
+        self._in_port = Port_phy(name + " in port")
+        self._out_port = Port_phy(name + " out port")
 
     def connect_in_port(self, pc: "PC_phy"):
         self._in_port.connect(pc._out_port)
@@ -61,7 +61,7 @@ class PortState(Enum):
     RX_BYTE = auto()
 
 
-class Port:
+class Port_phy:
     def __init__(self, name: str):
         self.name = name
         self.__pins: Dict[PinName, bool] = {
@@ -72,7 +72,7 @@ class Port:
             "RTS": False,
             "CTS": False,
         }
-        self.__connected_port: Union[Port, None] = None
+        self.__connected_port: Union[Port_phy, None] = None
         self.__state = PortState.INACTIVE
         self.__timer: int = 0
         self.__send_buffer: Queue[int] = Queue()
@@ -80,7 +80,7 @@ class Port:
         self.__current_byte: int = 0
         self.__current_bit_mask: int = 1
 
-    def connect(self, port: "Port"):
+    def connect(self, port: "Port_phy"):
         if self.__connected_port:
             raise RuntimeError("already connected to port")
         if port.__connected_port:
@@ -91,37 +91,24 @@ class Port:
         self.__connected_port = port
         port.__connected_port = self
 
-        self.set_pin("DTR", True)
-        port.set_pin("DTR", True)
+        self.__set_pin("DTR", True)
+        port.__set_pin("DTR", True)
 
         for pin in ("TXD", "RTS"):
-            self.set_pin(pin, self.__pins[pin])
+            self.__set_pin(pin, self.__pins[pin])
 
     def disconnect(self):
         if not self.__connected_port:
             raise RuntimeError("not connected to port")
 
-        self.__connected_port.set_pin("DTR", False)
-        self.set_pin("DTR", False)
+        self.__connected_port.__set_pin("DTR", False)
+        self.__set_pin("DTR", False)
 
         self.__connected_port.__connected_port = None
         self.__connected_port = None
 
         for pin in ("TXD", "RTS"):
-            self.set_pin(pin, self.__pins[pin])
-
-    def set_pin(self, pin: PinName, active: bool):
-        self.__pins[pin] = active
-        self.__log_debug(f"set pin {pin} to {active}")
-
-    def enqueue_send_byte(self, byte: int):
-        if not 0 <= byte <= 255:
-            raise ValueError("invalid byte")
-
-        self.__send_buffer.put(byte)
-
-    def get_received_byte(self) -> int:
-        return self.__receive_buffer.get(block=False)
+            self.__set_pin(pin, self.__pins[pin])
 
     def do_tick(self):
         if self.__timer == 0:
@@ -129,6 +116,15 @@ class Port:
             return
 
         self.__timer -= 1
+
+    def _enqueue_send_byte(self, byte: int):
+        if not 0 <= byte <= 255:
+            raise ValueError("invalid byte")
+
+        self.__send_buffer.put(byte)
+
+    def _get_received_byte(self) -> int:
+        return self.__receive_buffer.get(block=False)
 
     def _get_pin(self, pin: PinName) -> bool:  # must be accessible from tests
         if self.__connected_port:
@@ -140,6 +136,10 @@ class Port:
             active = self.__pins[pin]
         self.__log_debug(f"read pin {pin} as {active}")
         return active
+
+    def __set_pin(self, pin: PinName, active: bool):
+        self.__pins[pin] = active
+        self.__log_debug(f"set pin {pin} to {active}")
 
     def __change_state(self):
         self.__timer = TPB + randint(-TIMER_MAX_ERROR, TIMER_MAX_ERROR)
@@ -155,29 +155,31 @@ class Port:
             case PortState.STANDBY:
                 if not self.__send_buffer.empty():
                     self.__current_byte = self.__send_buffer.get()
-                    self.set_pin("TXD", True)
-                    self.set_pin("RTS", True)
+                    self.__set_pin("TXD", True)
+                    self.__set_pin("RTS", True)
                     self.__set_state(PortState.TX_RTS)
                     return
                 if self._get_pin("CTS"):
-                    self.set_pin("RTS", True)
+                    self.__set_pin("RTS", True)
                     self.__set_state(PortState.RX_CTS)
             case PortState.TX_RTS:
                 self.__set_state(PortState.TX_AWAIT_CTS)
             case PortState.TX_AWAIT_CTS:
                 if not self._get_pin("CTS"):
                     return
-                self.set_pin("TXD", False)
+                self.__set_pin("TXD", False)
                 self.__set_state(PortState.TX_START_BIT)
             case PortState.TX_START_BIT:
                 self.__set_state(PortState.TX_BYTE)
             case PortState.TX_BYTE:
                 if self.__current_bit_mask == 256:
-                    self.set_pin("RTS", False)
+                    self.__set_pin("RTS", False)
                     self.__set_state(PortState.STANDBY)
                     self.__log_debug(f"sent byte {self.__current_byte:08b}")
                     return
-                self.set_pin("TXD", bool(self.__current_byte & self.__current_bit_mask))
+                self.__set_pin(
+                    "TXD", bool(self.__current_byte & self.__current_bit_mask)
+                )
                 self.__current_bit_mask <<= 1
             case PortState.RX_CTS:
                 self.__set_state(PortState.RX_AWAIT_RXD)
@@ -195,7 +197,7 @@ class Port:
             case PortState.RX_BYTE:
                 if self.__current_bit_mask == 256:
                     self.__receive_buffer.put(self.__current_byte)
-                    self.set_pin("RTS", False)
+                    self.__set_pin("RTS", False)
                     self.__set_state(PortState.STANDBY)
                     self.__log_debug(f"received byte {self.__current_byte:08b}")
                     return
