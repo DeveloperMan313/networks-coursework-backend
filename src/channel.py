@@ -1,8 +1,11 @@
 from enum import Enum, auto
+from math import floor, log2
 from queue import Queue
-from typing import Literal
+from random import randint
+from typing import Literal, Tuple, cast
 
-from src.physical import PC_phy, Port_phy
+from src.loggers import cha_logger
+from src.physical import TIMER_MAX_ERROR, TPB, PC_phy, Port_phy
 
 T_MULT = 16  # cha tick multiplier relative to phy
 
@@ -38,9 +41,13 @@ class PFrameH(Enum):
     UPLINK = auto()
     DOWNLINK = auto()
     LINKACTIVE = auto()
-    MAILSTART = auto()
-    MAILDATA = auto()
-    MAILEND = auto()
+    DATASTART = auto()
+    DATA = auto()
+    DATAEND = auto()
+
+
+# allowed heads for messages from/to app layer
+AppMsgHead = Literal[PFrameH.UPLINK, PFrameH.DOWNLINK, PFrameH.LINKACTIVE, PFrameH.DATA]
 
 
 class Frame:
@@ -48,9 +55,9 @@ class Frame:
     _data: int | None
 
     def __init__(self, head: PFrameH, data: int | None = None):
-        if head == PFrameH.MAILDATA and data is None:
+        if head == PFrameH.DATA and data is None:
             raise ValueError("MAILDATA frame should have data")
-        if data and not 0 <= data <= 255:
+        if data and not 0 <= data <= 15:
             raise ValueError("invalid data")
         self._head = head
         self._data = data
@@ -67,9 +74,7 @@ class Frame:
 class MsgTX(Frame):
     def __init__(
         self,
-        head: Literal[
-            PFrameH.UPLINK, PFrameH.DOWNLINK, PFrameH.LINKACTIVE, PFrameH.MAILDATA
-        ],
+        head: AppMsgHead,
         data: int | None = None,
     ):
         super().__init__(head, data)
@@ -78,23 +83,25 @@ class MsgTX(Frame):
 class MsgRX(Frame):
     def __init__(
         self,
-        head: Literal[
-            PFrameH.UPLINK, PFrameH.DOWNLINK, PFrameH.LINKACTIVE, PFrameH.MAILDATA
-        ],
+        head: AppMsgHead,
         data: int,
     ):
         super().__init__(head, data)
-        if head != PFrameH.MAILDATA and data != 1 and data != 0:
+        if head != PFrameH.DATA and data != 1 and data != 0:
             raise ValueError(
                 f"{head.name} message should have data 1 (success) or 0 (fail)"
             )
 
 
 class Port_cha(Port_phy):
+    __GEN_POLY_7_4 = 0b1011
+    __POLY_SHIFT = 7 - 4
+
     def __init__(self, name: str):
         super().__init__(name)
         self.__state = PS_cha.INACTIVE
         self.__timer: int = 0
+        self.__ticks_waiting: int = 0
         self.__send_buffer: Queue[MsgTX] = Queue()
         self.__receive_buffer: Queue[MsgRX] = Queue()
 
@@ -103,3 +110,118 @@ class Port_cha(Port_phy):
 
     def get_received_msg(self) -> MsgRX:
         return self.__receive_buffer.get(block=False)
+
+    def do_tick(self):
+        super().do_tick()
+
+        if self.__timer == 0:
+            self.__change_state()
+            return
+
+        self.__timer -= 1
+
+    def __change_state(self):
+        self.__timer = (TPB + randint(-TIMER_MAX_ERROR, TIMER_MAX_ERROR)) * T_MULT
+
+        if self.__state != PS_cha.INACTIVE and self.__ticks_waiting == _TIMEOUT:
+            self.__set_state(PS_cha.STANDBY)
+            return
+
+        self.__ticks_waiting += 1
+
+        match self.__state:
+            case PS_cha.INACTIVE:
+                frame = self.__try_receive_1chunk_frame()
+                if frame:
+                    if not self.__frame_head_is_of(frame.head, (PFrameH.UPLINK,)):
+                        return
+                    self.__send_1chunk_frame(PFrameH.ACK)
+                    self.__set_state(PS_cha.STANDBY)
+                    return
+                if not self.__send_buffer.empty():
+                    msg = self.__send_buffer.get()
+                    if msg.head != PFrameH.UPLINK:
+                        self.__log_debug(f"incorrect send buffer msg {msg.head}")
+                        fail_msg = MsgRX(cast(AppMsgHead, msg.head), 0)
+                        self.__receive_buffer.put(fail_msg)
+                    self.__send_1chunk_frame(PFrameH.UPLINK)
+                    self.__set_state(PS_cha.TX_UPLINK_AWAIT_ACK)
+            case PS_cha.TX_UPLINK_AWAIT_ACK:
+                frame = self.__try_receive_1chunk_frame()
+                if not frame:
+                    return
+                if not self.__frame_head_is_of(frame.head, (PFrameH.ACK,)):
+                    return
+                success_msg = MsgRX(PFrameH.UPLINK, 0)
+                self.__receive_buffer.put(success_msg)
+                self.__set_state(PS_cha.STANDBY)
+            case _:
+                pass  # TODO all states
+
+    def __send_chunk(self, raw_chunk: int):
+        if not 0 <= raw_chunk <= 15:
+            raise ValueError("invalid chunk")
+
+        encoded_chunk = (
+            raw_chunk << Port_cha.__POLY_SHIFT
+        ) + Port_cha.divide_polynoms_remainder(raw_chunk, Port_cha.__GEN_POLY_7_4)
+        self.__log_debug(
+            f"sending chunk {raw_chunk:>04b} encoded as {encoded_chunk:>07b}"
+        )
+        self._enqueue_send_byte(encoded_chunk)
+
+    def __send_1chunk_frame(self, head: PFrameH):
+        self.__log_debug(f"sending 1-chunk frame {head.name}")
+        self.__send_chunk(head.value)
+
+    def __try_receive_chunk(self) -> int | None:
+        if not self._has_received_bytes():
+            return None
+
+        encoded_chunk = self._get_received_byte()
+        syndrome = Port_cha.divide_polynoms_remainder(
+            encoded_chunk, Port_cha.__GEN_POLY_7_4
+        )
+        raw_chunk = encoded_chunk >> Port_cha.__POLY_SHIFT
+        if syndrome == 0:
+            self.__log_debug(f"received valid chunk {raw_chunk}")
+            return raw_chunk
+
+        self.__log_debug(f"received invalid chunk {raw_chunk}, sending NACK")
+        self.__send_1chunk_frame(PFrameH.NACK)
+        return None
+
+    def __try_receive_1chunk_frame(self) -> Frame | None:
+        return Frame(
+            PFrameH(self.__try_receive_chunk())
+        )  # assuming it isn't data chunk of DATA-frame
+
+    def __frame_head_is_of(self, head: PFrameH, acceptable: Tuple[PFrameH]) -> bool:
+        if head not in acceptable:
+            self.__log_debug(f"incorrect frame {head}")
+            return False
+        return True
+
+    @staticmethod
+    def divide_polynoms_remainder(dividend: int, divisor: int) -> int:
+        if dividend == 0:
+            return divisor
+
+        len_dividend = floor(log2(dividend)) + 1
+        len_divisor = floor(log2(divisor)) + 1
+
+        for i in range(len_dividend - len_divisor + 1):
+            if dividend & (1 << (len_dividend - 1 - i)):
+                dividend ^= divisor << (len_dividend - len_divisor - i)
+
+        remainder = dividend & ((1 << (len_divisor - 1)) - 1)
+
+        return remainder
+
+    def __set_state(self, state: PS_cha):
+        self.__state = state
+        self.__ticks_waiting = 0
+        self.__log_debug(f"changed state to {state}")
+
+    def __log_debug(self, msg: object):
+        cha_logger.debug("%s: %s", self._name, msg)

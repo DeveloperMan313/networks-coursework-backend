@@ -63,8 +63,10 @@ class PS_phy(Enum):
 
 
 class Port_phy:
+    _name: str
+
     def __init__(self, name: str):
-        self.name = name
+        self._name = name
         self.__pins: Dict[PinName, bool] = {
             "DCD": False,
             "RXD": False,
@@ -127,6 +129,9 @@ class Port_phy:
     def _get_received_byte(self) -> int:
         return self.__receive_buffer.get(block=False)
 
+    def _has_received_bytes(self) -> bool:
+        return not self.__receive_buffer.empty()
+
     def _get_pin(self, pin: PinName) -> bool:  # must be accessible from tests
         if self.__connected_port:
             active = (
@@ -154,15 +159,15 @@ class Port_phy:
                 if self._get_pin("DCD"):
                     self.__set_state(PS_phy.STANDBY)
             case PS_phy.STANDBY:
+                if self._get_pin("CTS"):
+                    self.__set_pin("RTS", True)
+                    self.__set_state(PS_phy.RX_CTS)
+                    return
                 if not self.__send_buffer.empty():
                     self.__current_byte = self.__send_buffer.get()
                     self.__set_pin("TXD", True)
                     self.__set_pin("RTS", True)
                     self.__set_state(PS_phy.TX_RTS)
-                    return
-                if self._get_pin("CTS"):
-                    self.__set_pin("RTS", True)
-                    self.__set_state(PS_phy.RX_CTS)
             case PS_phy.TX_RTS:
                 self.__set_state(PS_phy.TX_AWAIT_CTS)
             case PS_phy.TX_AWAIT_CTS:
@@ -212,7 +217,7 @@ class Port_phy:
         self.__log_debug(f"changed state to {state}")
 
     def __log_debug(self, msg: object):
-        phy_logger.debug("%s: %s", self.name, msg)
+        phy_logger.debug("%s: %s", self._name, msg)
 
 
 def init_network(PC: Type[PC_phy]):

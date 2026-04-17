@@ -1,6 +1,6 @@
 <mxfile host="Electron" agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) draw.io/29.6.1 Chrome/142.0.7444.265 Electron/39.5.2 Safari/537.36" version="29.6.1">
   <diagram name="Страница-1" id="noBLO5nFaECuEp6z7TQx">
-    <mxGraphModel dx="964" dy="1680" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="1654" math="0" shadow="0">
+    <mxGraphModel dx="537" dy="674" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="1654" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
@@ -469,7 +469,7 @@
             <mxPoint x="720" y="1120" as="targetPoint" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="eAl5W1-UtyVuQ1xHRYkY-79" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=top;rounded=0;fontSize=14;" value="MAILSTART-кадр" vertex="1">
+        <mxCell id="eAl5W1-UtyVuQ1xHRYkY-79" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=top;rounded=0;fontSize=14;" value="DATASTART-кадр" vertex="1">
           <mxGeometry height="40" width="160" x="720" y="1280" as="geometry" />
         </mxCell>
         <mxCell id="eAl5W1-UtyVuQ1xHRYkY-80" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=top;rounded=0;fontSize=14;" value="ACK-кадр" vertex="1">
@@ -481,7 +481,7 @@
         <mxCell id="eAl5W1-UtyVuQ1xHRYkY-82" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;fontSize=14;" value="PC2" vertex="1">
           <mxGeometry height="40" width="40" x="860" y="1320" as="geometry" />
         </mxCell>
-        <mxCell id="eAl5W1-UtyVuQ1xHRYkY-83" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;fontSize=14;" value="Успешная передача письма" vertex="1">
+        <mxCell id="eAl5W1-UtyVuQ1xHRYkY-83" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;fontSize=14;" value="Успешная передача данных" vertex="1">
           <mxGeometry height="40" width="160" x="720" y="1360" as="geometry" />
         </mxCell>
         <mxCell id="eAl5W1-UtyVuQ1xHRYkY-86" edge="1" parent="1" style="endArrow=classic;html=1;rounded=0;" value="">
@@ -496,7 +496,7 @@
             <mxPoint x="720" y="840" as="targetPoint" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="eAl5W1-UtyVuQ1xHRYkY-88" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=top;rounded=0;fontSize=14;" value="MAILDATA-кадр" vertex="1">
+        <mxCell id="eAl5W1-UtyVuQ1xHRYkY-88" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=top;rounded=0;fontSize=14;" value="DATA-кадр" vertex="1">
           <mxGeometry height="40" width="160" x="720" y="1000" as="geometry" />
         </mxCell>
         <mxCell id="eAl5W1-UtyVuQ1xHRYkY-89" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=top;rounded=0;fontSize=14;" value="ACK-кадр" vertex="1">
@@ -514,7 +514,7 @@
             <mxPoint x="718.75" y="560" as="targetPoint" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="eAl5W1-UtyVuQ1xHRYkY-94" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=top;rounded=0;fontSize=14;" value="MAILEND-кадр" vertex="1">
+        <mxCell id="eAl5W1-UtyVuQ1xHRYkY-94" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=top;rounded=0;fontSize=14;" value="DATAEND-кадр" vertex="1">
           <mxGeometry height="40" width="160" x="718.75" y="720" as="geometry" />
         </mxCell>
         <mxCell id="eAl5W1-UtyVuQ1xHRYkY-95" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=top;rounded=0;fontSize=14;" value="ACK-кадр" vertex="1">
@@ -601,7 +601,7 @@
         <mxCell id="eAl5W1-UtyVuQ1xHRYkY-123" parent="1" style="strokeWidth=2;html=1;shape=mxgraph.flowchart.annotation_1;align=left;pointerEvents=1;flipH=1;legacyAnchorPoints=0;" value="" vertex="1">
           <mxGeometry height="320" width="10" x="920" y="760" as="geometry" />
         </mxCell>
-        <mxCell id="eAl5W1-UtyVuQ1xHRYkY-124" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;fontSize=14;" value="все байты письма" vertex="1">
+        <mxCell id="eAl5W1-UtyVuQ1xHRYkY-124" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;fontSize=14;" value="все байты данных" vertex="1">
           <mxGeometry height="80" width="150" x="930" y="880" as="geometry" />
         </mxCell>
         <mxCell id="eAl5W1-UtyVuQ1xHRYkY-179" connectable="0" parent="1" style="group;movable=0;resizable=0;rotatable=0;deletable=0;editable=0;locked=1;connectable=0;" value="" vertex="1">
