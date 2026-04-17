@@ -1,14 +1,18 @@
-import logging
+from logging import Formatter, Logger, StreamHandler, getLogger
 
-_formatter_msg_template = "{asctime} [OSI_level] {levelname}: {message}"
-_formatter_datefmt = "%Y-%m-%d %H:%M:%S"
 
-_console_handler_phy = logging.StreamHandler()
-_formatter_phy = logging.Formatter(
-    _formatter_msg_template.replace("[OSI_level]", "phy"),
-    style="{",
-    datefmt=_formatter_datefmt,
-)
-_console_handler_phy.setFormatter(_formatter_phy)
-phy_logger = logging.getLogger(__name__)
-phy_logger.addHandler(_console_handler_phy)
+def _get_logger_for_OSI_level(OSI_level: str) -> Logger:
+    console_handler = StreamHandler()
+    formatter = Formatter(
+        f"$asctime {OSI_level} $levelname: $message",
+        style="$",
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
+    console_handler.setFormatter(formatter)
+    logger = getLogger(OSI_level)
+    logger.addHandler(console_handler)
+    return logger
+
+
+phy_logger = _get_logger_for_OSI_level("phy")
+cha_logger = _get_logger_for_OSI_level("cha")
