@@ -7,7 +7,7 @@ from src.loggers import phy_logger
 
 PinName = Literal["DCD", "RXD", "TXD", "DTR", "RTS", "CTS"]
 
-DTE_DTE_pin_connections: Dict[PinName, PinName] = {
+_DTE_DTE_pin_connections: Dict[PinName, PinName] = {
     "DTR": "DCD",
     "DCD": "DTR",
     "TXD": "RXD",
@@ -22,7 +22,7 @@ TIMER_MAX_ERROR = 1
 
 PC_CNT = 3
 
-pc_ring: List["PC_phy"] = []
+_pc_ring: List["PC_phy"] = []
 
 
 class PC_phy:
@@ -48,7 +48,8 @@ class PC_phy:
         self._out_port.do_tick()
 
 
-class PortState(Enum):
+# port states physical layer
+class PS_phy(Enum):
     INACTIVE = auto()
     STANDBY = auto()
     TX_RTS = auto()
@@ -73,7 +74,7 @@ class Port_phy:
             "CTS": False,
         }
         self.__connected_port: Union[Port_phy, None] = None
-        self.__state = PortState.INACTIVE
+        self.__state = PS_phy.INACTIVE
         self.__timer: int = 0
         self.__send_buffer: Queue[int] = Queue()
         self.__receive_buffer: Queue[int] = Queue()
@@ -130,7 +131,7 @@ class Port_phy:
         if self.__connected_port:
             active = (
                 self.__pins[pin]
-                or self.__connected_port.__pins[DTE_DTE_pin_connections[pin]]
+                or self.__connected_port.__pins[_DTE_DTE_pin_connections[pin]]
             )
         else:
             active = self.__pins[pin]
@@ -145,60 +146,60 @@ class Port_phy:
         self.__timer = TPB + randint(-TIMER_MAX_ERROR, TIMER_MAX_ERROR)
 
         if not self._get_pin("DCD"):
-            self.__set_state(PortState.INACTIVE)
+            self.__set_state(PS_phy.INACTIVE)
             return
 
         match self.__state:
-            case PortState.INACTIVE:
+            case PS_phy.INACTIVE:
                 if self._get_pin("DCD"):
-                    self.__set_state(PortState.STANDBY)
-            case PortState.STANDBY:
+                    self.__set_state(PS_phy.STANDBY)
+            case PS_phy.STANDBY:
                 if not self.__send_buffer.empty():
                     self.__current_byte = self.__send_buffer.get()
                     self.__set_pin("TXD", True)
                     self.__set_pin("RTS", True)
-                    self.__set_state(PortState.TX_RTS)
+                    self.__set_state(PS_phy.TX_RTS)
                     return
                 if self._get_pin("CTS"):
                     self.__set_pin("RTS", True)
-                    self.__set_state(PortState.RX_CTS)
-            case PortState.TX_RTS:
-                self.__set_state(PortState.TX_AWAIT_CTS)
-            case PortState.TX_AWAIT_CTS:
+                    self.__set_state(PS_phy.RX_CTS)
+            case PS_phy.TX_RTS:
+                self.__set_state(PS_phy.TX_AWAIT_CTS)
+            case PS_phy.TX_AWAIT_CTS:
                 if not self._get_pin("CTS"):
                     return
                 self.__set_pin("TXD", False)
-                self.__set_state(PortState.TX_START_BIT)
-            case PortState.TX_START_BIT:
-                self.__set_state(PortState.TX_BYTE)
-            case PortState.TX_BYTE:
+                self.__set_state(PS_phy.TX_START_BIT)
+            case PS_phy.TX_START_BIT:
+                self.__set_state(PS_phy.TX_BYTE)
+            case PS_phy.TX_BYTE:
                 if self.__current_bit_mask == 256:
                     self.__set_pin("RTS", False)
-                    self.__set_state(PortState.STANDBY)
+                    self.__set_state(PS_phy.STANDBY)
                     self.__log_debug(f"sent byte {self.__current_byte:08b}")
                     return
                 self.__set_pin(
                     "TXD", bool(self.__current_byte & self.__current_bit_mask)
                 )
                 self.__current_bit_mask <<= 1
-            case PortState.RX_CTS:
-                self.__set_state(PortState.RX_AWAIT_RXD)
+            case PS_phy.RX_CTS:
+                self.__set_state(PS_phy.RX_AWAIT_RXD)
                 self.__timer = 1  # high precision override
-            case PortState.RX_AWAIT_RXD:
+            case PS_phy.RX_AWAIT_RXD:
                 if self._get_pin("RXD"):
                     self.__timer = 1  # high precision override
                     return
-                self.__set_state(PortState.RX_SYNC)
-            case PortState.RX_SYNC:
+                self.__set_state(PS_phy.RX_SYNC)
+            case PS_phy.RX_SYNC:
                 self.__current_byte = 0
                 self.__current_bit_mask = 1
                 self.__timer += TPB // 2
-                self.__set_state(PortState.RX_BYTE)
-            case PortState.RX_BYTE:
+                self.__set_state(PS_phy.RX_BYTE)
+            case PS_phy.RX_BYTE:
                 if self.__current_bit_mask == 256:
                     self.__receive_buffer.put(self.__current_byte)
                     self.__set_pin("RTS", False)
-                    self.__set_state(PortState.STANDBY)
+                    self.__set_state(PS_phy.STANDBY)
                     self.__log_debug(f"received byte {self.__current_byte:08b}")
                     return
                 self.__current_byte += (
@@ -206,7 +207,7 @@ class Port_phy:
                 )
                 self.__current_bit_mask <<= 1
 
-    def __set_state(self, state: PortState):
+    def __set_state(self, state: PS_phy):
         self.__state = state
         self.__log_debug(f"changed state to {state}")
 
@@ -216,15 +217,15 @@ class Port_phy:
 
 def init_network(PC: Type[PC_phy]):
     for i in range(PC_CNT):
-        pc_ring.append(PC(f"PC{i}"))
+        _pc_ring.append(PC(f"PC{i}"))
 
     for i in range(PC_CNT):
         prev_i = i - 1
         next_i = (i + 1) % PC_CNT
-        pc_ring[i].connect_in_port(pc_ring[prev_i])
-        pc_ring[i].connect_out_port(pc_ring[next_i])
+        _pc_ring[i].connect_in_port(_pc_ring[prev_i])
+        _pc_ring[i].connect_out_port(_pc_ring[next_i])
 
 
 def do_tick():
-    for pc in pc_ring:
+    for pc in _pc_ring:
         pc.do_tick()
