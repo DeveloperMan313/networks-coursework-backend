@@ -70,6 +70,11 @@ class Frame:
     def data(self) -> int | None:
         return self._data
 
+    def __eq__(self, value: object, /) -> bool:
+        if not isinstance(value, Frame):
+            return False
+        return self.head == value.head and self.data == value.data
+
 
 class MsgTX(Frame):
     def __init__(
@@ -124,10 +129,10 @@ class Port_cha(Port_phy):
         self.__timer = (TPB + randint(-TIMER_MAX_ERROR, TIMER_MAX_ERROR)) * T_MULT
 
         if self.__state != PS_cha.INACTIVE and self.__ticks_waiting == _TIMEOUT:
+            self.__ticks_waiting = 0
+            self.__log_debug("response timeout reached")
             self.__set_state(PS_cha.STANDBY)
             return
-
-        self.__ticks_waiting += 1
 
         match self.__state:
             case PS_cha.INACTIVE:
@@ -147,12 +152,13 @@ class Port_cha(Port_phy):
                     self.__send_1chunk_frame(PFrameH.UPLINK)
                     self.__set_state(PS_cha.TX_UPLINK_AWAIT_ACK)
             case PS_cha.TX_UPLINK_AWAIT_ACK:
+                self.__ticks_waiting += 1
                 frame = self.__try_receive_1chunk_frame()
                 if not frame:
                     return
                 if not self.__frame_head_is_of(frame.head, (PFrameH.ACK,)):
                     return
-                success_msg = MsgRX(PFrameH.UPLINK, 0)
+                success_msg = MsgRX(PFrameH.UPLINK, 1)
                 self.__receive_buffer.put(success_msg)
                 self.__set_state(PS_cha.STANDBY)
             case _:
@@ -162,9 +168,10 @@ class Port_cha(Port_phy):
         if not 0 <= raw_chunk <= 15:
             raise ValueError("invalid chunk")
 
-        encoded_chunk = (
-            raw_chunk << Port_cha.__POLY_SHIFT
-        ) + Port_cha.divide_polynoms_remainder(raw_chunk, Port_cha.__GEN_POLY_7_4)
+        raw_chunk_shifted = raw_chunk << Port_cha.__POLY_SHIFT
+        encoded_chunk = (raw_chunk_shifted) + Port_cha.divide_polynoms_remainder(
+            raw_chunk_shifted, Port_cha.__GEN_POLY_7_4
+        )
         self.__log_debug(
             f"sending chunk {raw_chunk:>04b} encoded as {encoded_chunk:>07b}"
         )
@@ -184,17 +191,24 @@ class Port_cha(Port_phy):
         )
         raw_chunk = encoded_chunk >> Port_cha.__POLY_SHIFT
         if syndrome == 0:
-            self.__log_debug(f"received valid chunk {raw_chunk}")
+            self.__log_debug(
+                f"received valid encoded chunk {encoded_chunk:>07b}, decoded as {raw_chunk:>04b}"
+            )
             return raw_chunk
 
-        self.__log_debug(f"received invalid chunk {raw_chunk}, sending NACK")
+        self.__log_debug(
+            f"received invalid encoded chunk {encoded_chunk:>07b}, sending NACK"
+        )
         self.__send_1chunk_frame(PFrameH.NACK)
         return None
 
     def __try_receive_1chunk_frame(self) -> Frame | None:
-        return Frame(
-            PFrameH(self.__try_receive_chunk())
-        )  # assuming it isn't data chunk of DATA-frame
+        chunk = self.__try_receive_chunk()
+        if chunk is None:
+            return None
+        frame_head = PFrameH(chunk)
+        self.__log_debug(f"received 1-chunk frame {frame_head}")
+        return Frame(frame_head)  # assuming it isn't data chunk of DATA-frame
 
     def __frame_head_is_of(self, head: PFrameH, acceptable: Tuple[PFrameH]) -> bool:
         if head not in acceptable:
