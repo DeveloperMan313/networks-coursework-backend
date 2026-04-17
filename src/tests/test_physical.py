@@ -3,7 +3,7 @@ import unittest
 from src.physical import TIMER_MAX_ERROR, TPB, Port_phy
 
 
-class TestPort(unittest.TestCase):
+class TestPort_phy(unittest.TestCase):
     def test_connect_sets_pins_up(self):
         port1 = Port_phy("port 1")
         port2 = Port_phy("port 2")
@@ -57,20 +57,27 @@ class TestPort(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "not connected to port"):
             port1.disconnect()
 
-    def test_sent_byte_is_received(self):
+    def test_sent_byte_is_received_bidirectionally_arbitrary_order(self):
         port1 = Port_phy("port 1")
         port2 = Port_phy("port 2")
         port1.connect(port2)
         byte = 0b01110100
-        port1._enqueue_send_byte(byte)
-        for _ in range((TPB + TIMER_MAX_ERROR) * 15):
-            port1.do_tick()
-            port2.do_tick()
-        self.assertEqual(
-            port2._get_received_byte(),
-            byte,
-            "Received byte should be equal to sent byte",
-        )
+        for swap in (False, False, True, False, True, True):
+            if swap:
+                portA = port2
+                portB = port1
+            else:
+                portA = port1
+                portB = port2
+            portA._enqueue_send_byte(byte)
+            for _ in range((TPB + TIMER_MAX_ERROR) * 15):
+                portA.do_tick()
+                portB.do_tick()
+            self.assertEqual(
+                portB._get_received_byte(),
+                byte,
+                "Received byte should be equal to sent byte",
+            )
 
 
 if __name__ == "__main__":

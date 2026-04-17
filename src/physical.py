@@ -176,6 +176,7 @@ class Port_phy:
                 self.__set_pin("TXD", False)
                 self.__set_state(PS_phy.TX_START_BIT)
             case PS_phy.TX_START_BIT:
+                self.__current_bit_mask = 1
                 self.__set_state(PS_phy.TX_BYTE)
             case PS_phy.TX_BYTE:
                 if self.__current_bit_mask == 256:
