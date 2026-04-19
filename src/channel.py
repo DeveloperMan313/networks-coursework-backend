@@ -163,6 +163,8 @@ class Port_cha(Port_phy):
                         case PFrameH.DOWNLINK:
                             self.__send_1chunk_frame(PFrameH.ACK)
                             self.__set_state(PS_cha.INACTIVE)
+                        case PFrameH.LINKACTIVE:
+                            self.__send_1chunk_frame(PFrameH.ACK)
                         case _:
                             pass  # TODO all heads
                     return
@@ -179,14 +181,17 @@ class Port_cha(Port_phy):
                         case PFrameH.DOWNLINK:
                             self.__send_1chunk_frame(PFrameH.DOWNLINK)
                             self.__set_state(PS_cha.TX_DOWNLINK_AWAIT_ACK)
+                        case PFrameH.LINKACTIVE:
+                            self.__send_1chunk_frame(PFrameH.LINKACTIVE)
+                            self.__set_state(PS_cha.TX_LINKACTIVE_AWAIT_ACK)
                         case _:
                             pass  # TODO all heads
             case PS_cha.TX_UPLINK_AWAIT_ACK:
                 self.__ticks_waiting += 1
                 frame = self.__try_receive_1chunk_frame()
-                if not frame:
-                    return
-                if not self.__frame_head_must_be_of(frame.head, (PFrameH.ACK,)):
+                if not frame or not self.__frame_head_must_be_of(
+                    frame.head, (PFrameH.ACK,)
+                ):
                     return
                 success_msg = MsgRX(PFrameH.UPLINK, 1)
                 self.__receive_buffer.put(success_msg)
@@ -194,13 +199,23 @@ class Port_cha(Port_phy):
             case PS_cha.TX_DOWNLINK_AWAIT_ACK:
                 self.__ticks_waiting += 1
                 frame = self.__try_receive_1chunk_frame()
-                if not frame:
-                    return
-                if not self.__frame_head_must_be_of(frame.head, (PFrameH.ACK,)):
+                if not frame or not self.__frame_head_must_be_of(
+                    frame.head, (PFrameH.ACK,)
+                ):
                     return
                 success_msg = MsgRX(PFrameH.DOWNLINK, 1)
                 self.__receive_buffer.put(success_msg)
                 self.__set_state(PS_cha.INACTIVE)
+            case PS_cha.TX_LINKACTIVE_AWAIT_ACK:
+                self.__ticks_waiting += 1
+                frame = self.__try_receive_1chunk_frame()
+                if not frame or not self.__frame_head_must_be_of(
+                    frame.head, (PFrameH.ACK,)
+                ):
+                    return
+                success_msg = MsgRX(PFrameH.LINKACTIVE, 1)
+                self.__receive_buffer.put(success_msg)
+                self.__set_state(PS_cha.STANDBY)
             case _:
                 pass  # TODO all states
 
