@@ -47,54 +47,18 @@ class PFrameH(Enum):
     DATAEND = auto()
 
 
-# allowed heads for messages from/to app layer
-AppMsgHead = Literal[PFrameH.UPLINK, PFrameH.DOWNLINK, PFrameH.LINKACTIVE, PFrameH.DATA]
+MsgReq = Literal[PFrameH.UPLINK, PFrameH.DOWNLINK, PFrameH.LINKACTIVE]
 
 
-class Frame:
-    _head: PFrameH
-    _data: int | None
-
-    def __init__(self, head: PFrameH, data: int | None = None):
-        if data and not 0 <= data <= 15:
-            raise ValueError("invalid data")
-        self._head = head
-        self._data = data
-
-    @property
-    def head(self) -> PFrameH:
-        return self._head
-
-    @property
-    def data(self) -> int | None:
-        return self._data
+class MsgRes:
+    def __init__(self, req: MsgReq | Literal[PFrameH.DATA], success: bool):
+        self.req = req
+        self.success = success
 
     def __eq__(self, value: object, /) -> bool:
-        if not isinstance(value, Frame):
+        if not isinstance(value, MsgRes):
             return False
-        return self.head == value.head and self.data == value.data
-
-
-class MsgTX(Frame):
-    def __init__(
-        self,
-        head: AppMsgHead,
-        data: int | None = None,
-    ):
-        super().__init__(head, data)
-
-
-class MsgRX(Frame):
-    def __init__(
-        self,
-        head: AppMsgHead,
-        data: int,
-    ):
-        super().__init__(head, data)
-        if head != PFrameH.DATA and data != 1 and data != 0:
-            raise ValueError(
-                f"{head.name} message should have data 1 (success) or 0 (fail)"
-            )
+        return self.req == value.req and self.success == value.success
 
 
 class Port_cha(Port_phy):
@@ -106,21 +70,21 @@ class Port_cha(Port_phy):
         self.__state = PS_cha.INACTIVE
         self.__timer: int = 0
         self.__ticks_waiting: int = 0
-        self.__send_buffer: Queue[MsgTX] = Queue()
-        self.__receive_buffer: Queue[MsgRX] = Queue()
+        self.__send_buffer: Queue[MsgReq] = Queue()
+        self.__receive_buffer: Queue[MsgRes] = Queue()
         self.__send_str_buffer: Queue[str] = Queue()
         self.__receive_str_buffer: Queue[str] = Queue()
         self.__current_str_chunks: List[int] = []
         self.__current_data_chunk: int = 0
         self.__is_sending_data: bool = False
 
-    def enqueue_send_msg(self, msg: MsgTX):
-        self.__send_buffer.put(msg)
+    def enqueue_request(self, req: MsgReq):
+        self.__send_buffer.put(req)
 
     def enqueue_send_str(self, string: str):
         self.__send_str_buffer.put(string)
 
-    def get_received_msg(self) -> MsgRX:
+    def get_response(self) -> MsgRes:
         return self.__receive_buffer.get(block=False)
 
     def get_received_str(self) -> str:
@@ -147,36 +111,36 @@ class Port_cha(Port_phy):
         if (
             self.__state in (PS_cha.INACTIVE, PS_cha.STANDBY)
         ) and self.__is_sending_data:
-            fail_msg = MsgRX(PFrameH.DATA, 0)
-            self.__put_to_receive_buffer(fail_msg)
+            fail_res = MsgRes(PFrameH.DATA, False)
+            self.__put_to_receive_buffer(fail_res)
             self.__is_sending_data = False
 
         match self.__state:
             case PS_cha.INACTIVE:
-                frame = self.__try_receive_1chunk_frame()
-                if frame:
-                    if not self.__frame_head_must_be_of(frame.head, (PFrameH.UPLINK,)):
+                head = self.__try_receive_1chunk_frame()
+                if head:
+                    if not self.__frame_head_must_be_of(head, (PFrameH.UPLINK,)):
                         return
                     self.__send_1chunk_frame(PFrameH.ACK)
                     self.__set_state(PS_cha.STANDBY)
                     return
                 if not self.__send_buffer.empty():
-                    msg = self.__get_from_send_buffer()
-                    if not self.__frame_head_must_be_of(msg.head, (PFrameH.UPLINK,)):
-                        fail_msg = MsgRX(cast(AppMsgHead, msg.head), 0)
-                        self.__put_to_receive_buffer(fail_msg)
+                    req = self.__get_from_send_buffer()
+                    if not self.__frame_head_must_be_of(req, (PFrameH.UPLINK,)):
+                        fail_res = MsgRes(cast(MsgReq, req), False)
+                        self.__put_to_receive_buffer(fail_res)
                         return
                     self.__send_1chunk_frame(PFrameH.UPLINK)
                     self.__set_state(PS_cha.TX_UPLINK_AWAIT_ACK)
             case PS_cha.STANDBY:
-                frame = self.__try_receive_1chunk_frame()
-                if frame:
+                head = self.__try_receive_1chunk_frame()
+                if head:
                     if not self.__frame_head_must_be_of(
-                        frame.head,
+                        head,
                         (PFrameH.DOWNLINK, PFrameH.LINKACTIVE, PFrameH.DATASTART),
                     ):
                         return
-                    match frame.head:
+                    match head:
                         case PFrameH.DOWNLINK:
                             self.__send_1chunk_frame(PFrameH.ACK)
                             self.__set_state(PS_cha.INACTIVE)
@@ -188,14 +152,14 @@ class Port_cha(Port_phy):
                             self.__set_state(PS_cha.RX_DATA_AWAIT_HEAD_OR_END)
                     return
                 if not self.__send_buffer.empty():
-                    msg = self.__get_from_send_buffer()
+                    req = self.__get_from_send_buffer()
                     if not self.__frame_head_must_be_of(
-                        msg.head, (PFrameH.DOWNLINK, PFrameH.LINKACTIVE)
+                        req, (PFrameH.DOWNLINK, PFrameH.LINKACTIVE)
                     ):
-                        fail_msg = MsgRX(cast(AppMsgHead, msg.head), 0)
-                        self.__put_to_receive_buffer(fail_msg)
+                        fail_res = MsgRes(cast(MsgReq, req), False)
+                        self.__put_to_receive_buffer(fail_res)
                         return
-                    match msg.head:
+                    match req:
                         case PFrameH.DOWNLINK:
                             self.__send_1chunk_frame(PFrameH.DOWNLINK)
                             self.__set_state(PS_cha.TX_DOWNLINK_AWAIT_ACK)
@@ -218,40 +182,32 @@ class Port_cha(Port_phy):
                     self.__set_state(PS_cha.TX_DATASTART_AWAIT_ACK)
             case PS_cha.TX_UPLINK_AWAIT_ACK:
                 self.__ticks_waiting += 1
-                frame = self.__try_receive_1chunk_frame()
-                if not frame or not self.__frame_head_must_be_of(
-                    frame.head, (PFrameH.ACK,)
-                ):
+                head = self.__try_receive_1chunk_frame()
+                if not head or not self.__frame_head_must_be_of(head, (PFrameH.ACK,)):
                     return
-                success_msg = MsgRX(PFrameH.UPLINK, 1)
-                self.__put_to_receive_buffer(success_msg)
+                success_res = MsgRes(PFrameH.UPLINK, True)
+                self.__put_to_receive_buffer(success_res)
                 self.__set_state(PS_cha.STANDBY)
             case PS_cha.TX_DOWNLINK_AWAIT_ACK:
                 self.__ticks_waiting += 1
-                frame = self.__try_receive_1chunk_frame()
-                if not frame or not self.__frame_head_must_be_of(
-                    frame.head, (PFrameH.ACK,)
-                ):
+                head = self.__try_receive_1chunk_frame()
+                if not head or not self.__frame_head_must_be_of(head, (PFrameH.ACK,)):
                     return
-                success_msg = MsgRX(PFrameH.DOWNLINK, 1)
-                self.__put_to_receive_buffer(success_msg)
+                success_res = MsgRes(PFrameH.DOWNLINK, True)
+                self.__put_to_receive_buffer(success_res)
                 self.__set_state(PS_cha.INACTIVE)
             case PS_cha.TX_LINKACTIVE_AWAIT_ACK:
                 self.__ticks_waiting += 1
-                frame = self.__try_receive_1chunk_frame()
-                if not frame or not self.__frame_head_must_be_of(
-                    frame.head, (PFrameH.ACK,)
-                ):
+                head = self.__try_receive_1chunk_frame()
+                if not head or not self.__frame_head_must_be_of(head, (PFrameH.ACK,)):
                     return
-                success_msg = MsgRX(PFrameH.LINKACTIVE, 1)
-                self.__put_to_receive_buffer(success_msg)
+                success_res = MsgRes(PFrameH.LINKACTIVE, True)
+                self.__put_to_receive_buffer(success_res)
                 self.__set_state(PS_cha.STANDBY)
             case PS_cha.TX_DATASTART_AWAIT_ACK:
                 self.__ticks_waiting += 1
-                frame = self.__try_receive_1chunk_frame()
-                if not frame or not self.__frame_head_must_be_of(
-                    frame.head, (PFrameH.ACK,)
-                ):
+                head = self.__try_receive_1chunk_frame()
+                if not head or not self.__frame_head_must_be_of(head, (PFrameH.ACK,)):
                     return
                 self.__set_state(PS_cha.TX_DATA_SEND_HEAD_OR_END)
             case PS_cha.TX_DATA_SEND_HEAD_OR_END:
@@ -264,41 +220,35 @@ class Port_cha(Port_phy):
                 self.__set_state(PS_cha.TX_DATA_HEAD_AWAIT_ACK)
             case PS_cha.TX_DATA_HEAD_AWAIT_ACK:
                 self.__ticks_waiting += 1
-                frame = self.__try_receive_1chunk_frame()
-                if not frame or not self.__frame_head_must_be_of(
-                    frame.head, (PFrameH.ACK,)
-                ):
+                head = self.__try_receive_1chunk_frame()
+                if not head or not self.__frame_head_must_be_of(head, (PFrameH.ACK,)):
                     return
                 self.__send_chunk(self.__current_data_chunk)
                 self.__set_state(PS_cha.TX_DATA_DATA_AWAIT_ACK)
             case PS_cha.TX_DATA_DATA_AWAIT_ACK:
                 self.__ticks_waiting += 1
-                frame = self.__try_receive_1chunk_frame()
-                if not frame or not self.__frame_head_must_be_of(
-                    frame.head, (PFrameH.ACK,)
-                ):
+                head = self.__try_receive_1chunk_frame()
+                if not head or not self.__frame_head_must_be_of(head, (PFrameH.ACK,)):
                     return
                 self.__set_state(PS_cha.TX_DATA_SEND_HEAD_OR_END)
             case PS_cha.TX_DATAEND_AWAIT_ACK:
                 self.__ticks_waiting += 1
-                frame = self.__try_receive_1chunk_frame()
-                if not frame or not self.__frame_head_must_be_of(
-                    frame.head, (PFrameH.ACK,)
-                ):
+                head = self.__try_receive_1chunk_frame()
+                if not head or not self.__frame_head_must_be_of(head, (PFrameH.ACK,)):
                     return
                 self.__is_sending_data = False
-                success_msg = MsgRX(PFrameH.DATA, 1)
-                self.__put_to_receive_buffer(success_msg)
+                success_res = MsgRes(PFrameH.DATA, True)
+                self.__put_to_receive_buffer(success_res)
                 self.__is_sending_data = False
                 self.__set_state(PS_cha.STANDBY)
             case PS_cha.RX_DATA_AWAIT_HEAD_OR_END:
                 self.__ticks_waiting += 1
-                frame = self.__try_receive_1chunk_frame()
-                if not frame or not self.__frame_head_must_be_of(
-                    frame.head, (PFrameH.DATA, PFrameH.DATAEND)
+                head = self.__try_receive_1chunk_frame()
+                if not head or not self.__frame_head_must_be_of(
+                    head, (PFrameH.DATA, PFrameH.DATAEND)
                 ):
                     return
-                match frame.head:
+                match head:
                     case PFrameH.DATA:
                         self.__send_1chunk_frame(PFrameH.ACK)
                         self.__set_state(PS_cha.RX_DATA_AWAIT_DATA)
@@ -362,32 +312,24 @@ class Port_cha(Port_phy):
         self.__send_1chunk_frame(PFrameH.NACK)
         return None
 
-    def __try_receive_1chunk_frame(self) -> Frame | None:
+    def __try_receive_1chunk_frame(self) -> PFrameH | None:
         chunk = self.__try_receive_chunk()
         if chunk is None:
             return None
-        frame_head = PFrameH(chunk)
-        self.__log_debug(f"received 1-chunk frame {frame_head}")
-        return Frame(frame_head)  # assuming it isn't data chunk of DATA-frame
+        head = PFrameH(chunk)
+        self.__log_debug(f"received 1-chunk frame {head}")
+        return head  # assuming it isn't data chunk of DATA-frame
 
-    def __get_from_send_buffer(self) -> MsgTX:
-        msg = self.__send_buffer.get()
-        if msg.data is not None:
-            self.__log_debug(
-                f"got msg from send buffer: head {msg.head}, data {msg.data:>04b}"
-            )
-        if msg.data is None:
-            self.__log_debug(f"got msg from send buffer: head {msg.head}")
-        return msg
+    def __get_from_send_buffer(self) -> MsgReq:
+        req = self.__send_buffer.get()
+        self.__log_debug(f"got request from send buffer: {req}")
+        return req
 
-    def __put_to_receive_buffer(self, msg: MsgRX):
-        self.__receive_buffer.put(msg)
-        if msg.data is not None:
-            self.__log_debug(
-                f"put msg to receive buffer: head {msg.head}, data {msg.data:>04b}"
-            )
-        if msg.data is None:
-            self.__log_debug(f"put msg to receive buffer: head {msg.head}")
+    def __put_to_receive_buffer(self, res: MsgRes):
+        self.__receive_buffer.put(res)
+        self.__log_debug(
+            f"put response to receive buffer: {res} {'' if res.success else 'un'}successful"
+        )
 
     def __frame_head_must_be_of(
         self, head: PFrameH, acceptable: Tuple[PFrameH, ...]
