@@ -1,7 +1,6 @@
 import unittest
 
-from src.channel import T_MULT, MsgRes, PFrameH, Port_cha
-from src.physical import TIMER_MAX_ERROR, TPB
+from src.channel import MsgRes, PFrameH, Port_cha
 
 
 class TestPort_cha(unittest.TestCase):
@@ -10,7 +9,7 @@ class TestPort_cha(unittest.TestCase):
         port2 = Port_cha("port 2")
         port1.connect(port2)
         port1.enqueue_request(PFrameH.UPLINK)
-        for _ in range((TPB + TIMER_MAX_ERROR) * T_MULT * 5):
+        while not port1.has_response():
             port1.do_tick()
             port2.do_tick()
         self.assertEqual(
@@ -20,7 +19,7 @@ class TestPort_cha(unittest.TestCase):
         )
 
         port2.enqueue_request(PFrameH.DOWNLINK)
-        for _ in range((TPB + TIMER_MAX_ERROR) * T_MULT * 5):
+        while not port2.has_response():
             port1.do_tick()
             port2.do_tick()
         self.assertEqual(
@@ -34,7 +33,7 @@ class TestPort_cha(unittest.TestCase):
         port2 = Port_cha("port 2")
         port1.connect(port2)
         port1.enqueue_request(PFrameH.UPLINK)
-        for _ in range((TPB + TIMER_MAX_ERROR) * T_MULT * 5):
+        while not port1.has_response():
             port1.do_tick()
             port2.do_tick()
         self.assertEqual(
@@ -44,7 +43,7 @@ class TestPort_cha(unittest.TestCase):
         )
 
         port2.enqueue_request(PFrameH.LINKACTIVE)
-        for _ in range((TPB + TIMER_MAX_ERROR) * T_MULT * 5):
+        while not port2.has_response():
             port1.do_tick()
             port2.do_tick()
         self.assertEqual(
@@ -54,7 +53,7 @@ class TestPort_cha(unittest.TestCase):
         )
 
         port1.enqueue_request(PFrameH.LINKACTIVE)
-        for _ in range((TPB + TIMER_MAX_ERROR) * T_MULT * 5):
+        while not port1.has_response():
             port1.do_tick()
             port2.do_tick()
         self.assertEqual(
@@ -68,7 +67,7 @@ class TestPort_cha(unittest.TestCase):
         port2 = Port_cha("port 2")
         port1.connect(port2)
         port1.enqueue_request(PFrameH.UPLINK)
-        for _ in range((TPB + TIMER_MAX_ERROR) * T_MULT * 5):
+        while not port1.has_response():
             port1.do_tick()
             port2.do_tick()
         self.assertEqual(
@@ -80,7 +79,7 @@ class TestPort_cha(unittest.TestCase):
         string = "Hello world!"
 
         port1.enqueue_send_str(string)
-        for _ in range((TPB + TIMER_MAX_ERROR) * T_MULT * 200):
+        while not port1.has_response() or not port2.has_received_str():
             port1.do_tick()
             port2.do_tick()
         self.assertEqual(
@@ -95,7 +94,7 @@ class TestPort_cha(unittest.TestCase):
         )
 
         port2.enqueue_request(PFrameH.LINKACTIVE)
-        for _ in range((TPB + TIMER_MAX_ERROR) * T_MULT * 5):
+        while not port2.has_response():
             port1.do_tick()
             port2.do_tick()
         self.assertEqual(
@@ -107,7 +106,7 @@ class TestPort_cha(unittest.TestCase):
         string = "How are you?"
 
         port2.enqueue_send_str(string)
-        for _ in range((TPB + TIMER_MAX_ERROR) * T_MULT * 200):
+        while not port2.has_response() or not port1.has_received_str():
             port1.do_tick()
             port2.do_tick()
         self.assertEqual(

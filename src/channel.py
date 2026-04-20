@@ -75,6 +75,7 @@ class Port_cha(Port_phy):
         self.__send_str_buffer: Queue[str] = Queue()
         self.__receive_str_buffer: Queue[str] = Queue()
         self.__current_str_chunks: List[int] = []
+        self.__last_sent_chunk: int = 0
         self.__current_data_chunk: int = 0
         self.__is_sending_data: bool = False
 
@@ -89,6 +90,12 @@ class Port_cha(Port_phy):
 
     def get_received_str(self) -> str:
         return self.__receive_str_buffer.get(block=False)
+
+    def has_response(self) -> bool:
+        return not self.__receive_buffer.empty()
+
+    def has_received_str(self) -> bool:
+        return not self.__receive_str_buffer.empty()
 
     def do_tick(self):
         super().do_tick()
@@ -278,6 +285,8 @@ class Port_cha(Port_phy):
         if not 0 <= raw_chunk <= 15:
             raise ValueError("invalid chunk")
 
+        self.__last_sent_chunk = raw_chunk
+
         raw_chunk_shifted = raw_chunk << Port_cha.__POLY_SHIFT
         encoded_chunk = (raw_chunk_shifted) + Port_cha.divide_polynoms_remainder(
             raw_chunk_shifted, Port_cha.__GEN_POLY_7_4
@@ -316,9 +325,19 @@ class Port_cha(Port_phy):
         chunk = self.__try_receive_chunk()
         if chunk is None:
             return None
-        head = PFrameH(chunk)
-        self.__log_debug(f"received 1-chunk frame {head}")
-        return head  # assuming it isn't data chunk of DATA-frame
+        try:
+            head = PFrameH(chunk)
+            self.__log_debug(f"received 1-chunk frame {head}")
+            # NACK is only sent in response, so check when awaiting response => in this method
+            if head == PFrameH.NACK:
+                self.__log_debug("sending last sent chunk")
+                self.__send_chunk(self.__last_sent_chunk)
+                return None
+            return head  # assuming it isn't data chunk of DATA-frame
+        except ValueError:
+            self.__log_debug(f"received invalid chunk frame {chunk:>04b}, sending NACK")
+            self.__send_1chunk_frame(PFrameH.NACK)
+            return None
 
     def __get_from_send_buffer(self) -> MsgReq:
         req = self.__send_buffer.get()

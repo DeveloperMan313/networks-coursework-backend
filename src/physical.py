@@ -16,9 +16,9 @@ _DTE_DTE_pin_connections: Dict[PinName, PinName] = {
     "CTS": "RTS",
 }
 
-TPB = 32  # Ticks Per Baud
+TPB = 1  # Ticks Per Baud
 
-TIMER_MAX_ERROR = 1
+TIMER_MAX_ERROR = 0  # will be more stable and faster with ideal timings and TPB = 1
 
 PC_CNT = 3
 

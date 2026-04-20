@@ -1,6 +1,6 @@
 import unittest
 
-from src.physical import TIMER_MAX_ERROR, TPB, Port_phy
+from src.physical import Port_phy
 
 
 class TestPort_phy(unittest.TestCase):
@@ -70,7 +70,7 @@ class TestPort_phy(unittest.TestCase):
                 portA = port1
                 portB = port2
             portA._enqueue_send_byte(byte)
-            for _ in range((TPB + TIMER_MAX_ERROR) * 15):
+            while not portB._has_received_bytes():
                 portA.do_tick()
                 portB.do_tick()
             self.assertEqual(
