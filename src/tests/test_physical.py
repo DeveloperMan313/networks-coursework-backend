@@ -58,8 +58,8 @@ class TestPort_phy(unittest.TestCase):
             port1.disconnect()
 
     def test_sent_byte_is_received_bidirectionally_arbitrary_order(self):
-        port1 = Port_phy("port 1")
-        port2 = Port_phy("port 2")
+        port1 = Port_phy("port 1", 0)
+        port2 = Port_phy("port 2", 0)
         port1.connect(port2)
         byte = 0b01110100
         for swap in (False, False, True, False, True, True):

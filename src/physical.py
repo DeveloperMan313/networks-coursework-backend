@@ -1,6 +1,6 @@
 from enum import Enum, auto
 from queue import Queue
-from random import randint
+from random import randint, random
 from typing import Dict, List, Literal, Type, Union
 
 from src.loggers import phy_logger
@@ -65,8 +65,9 @@ class PS_phy(Enum):
 class Port_phy:
     _name: str
 
-    def __init__(self, name: str):
+    def __init__(self, name: str, byte_error_prob=0.01):
         self._name = name
+        self._BYTE_ERROR_PROB = byte_error_prob
         self.__pins: Dict[PinName, bool] = {
             "DCD": False,
             "RXD": False,
@@ -165,6 +166,9 @@ class Port_phy:
                     return
                 if not self.__send_buffer.empty():
                     self.__current_byte = self.__send_buffer.get()
+                    if random() < self._BYTE_ERROR_PROB:
+                        err_idx = randint(0, 7)
+                        self.__current_byte ^= 1 << err_idx
                     self.__set_pin("TXD", True)
                     self.__set_pin("RTS", True)
                     self.__set_state(PS_phy.TX_RTS)
