@@ -1,6 +1,6 @@
 <mxfile host="Electron" agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) draw.io/29.6.1 Chrome/142.0.7444.265 Electron/39.5.2 Safari/537.36" version="29.6.1">
   <diagram name="Страница-1" id="noBLO5nFaECuEp6z7TQx">
-    <mxGraphModel dx="537" dy="674" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="1654" math="0" shadow="0">
+    <mxGraphModel dx="1554" dy="924" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="1654" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
@@ -208,8 +208,8 @@
         <mxCell id="I66Ii6747NRWzf5UJ8Uu-43" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;" value="&lt;i&gt;&lt;font&gt;МГТУ им. Н. Э. Баумана&lt;/font&gt;&lt;/i&gt;&lt;div&gt;&lt;i&gt;&lt;font&gt;Кафедра ИУ5&lt;/font&gt;&lt;/i&gt;&lt;/div&gt;&lt;div&gt;&lt;font&gt;&lt;i style=&quot;&quot;&gt;&lt;font style=&quot;&quot;&gt;Группа ИУ5-62Б&lt;/font&gt;&lt;/i&gt;&lt;/font&gt;&lt;/div&gt;" vertex="1">
           <mxGeometry height="30" width="195" x="2102.5" y="1564" as="geometry" />
         </mxCell>
-        <mxCell id="I66Ii6747NRWzf5UJ8Uu-44" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;" value="&lt;i&gt;&lt;font&gt;Эскизный проект&lt;/font&gt;&lt;/i&gt;" vertex="1">
-          <mxGeometry height="30" width="120" x="1935" y="1485" as="geometry" />
+        <mxCell id="I66Ii6747NRWzf5UJ8Uu-44" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;" value="&lt;i&gt;&lt;font&gt;Временные диаграммы&lt;/font&gt;&lt;/i&gt;" vertex="1">
+          <mxGeometry height="30" width="160" x="1920" y="1485" as="geometry" />
         </mxCell>
         <mxCell id="I66Ii6747NRWzf5UJ8Uu-45" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;" value="&lt;i&gt;&lt;font&gt;Изм.&lt;/font&gt;&lt;/i&gt;" vertex="1">
           <mxGeometry height="30" width="90" x="1577" y="1465" as="geometry" />
