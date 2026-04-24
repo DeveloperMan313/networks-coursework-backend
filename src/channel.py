@@ -5,20 +5,13 @@ from random import randint
 from typing import List, Literal, Tuple, cast
 
 from src.loggers import cha_logger
-from src.physical import TIMER_MAX_ERROR, TPB, PC_phy, Port_phy
+from src.physical import TIMER_MAX_ERROR, TPB, Port_phy
 
 T_MULT = 16  # cha tick multiplier relative to phy
 
 _TIMEOUT_TICKS = 10  # timeout in cha ticks
 
 _TIMEOUT_NACKS = 5  # max consecutive NACKs
-
-
-class PC_cha(PC_phy):
-    def __init__(self, name: str):
-        self.name = name
-        self._in_port = Port_cha(name + " in port")
-        self._out_port = Port_cha(name + " out port")
 
 
 # port states channel layer

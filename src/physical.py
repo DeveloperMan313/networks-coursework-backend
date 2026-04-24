@@ -27,7 +27,6 @@ _pc_ring: List["PC_phy"] = []
 
 class PC_phy:
     def __init__(self, name: str):
-        self.name = name
         self._in_port = Port_phy(name + " in port")
         self._out_port = Port_phy(name + " out port")
 
@@ -63,8 +62,6 @@ class PS_phy(Enum):
 
 
 class Port_phy:
-    _name: str
-
     def __init__(self, name: str, byte_error_prob=0.01):
         self._name = name
         self._BYTE_ERROR_PROB = byte_error_prob
