@@ -64,7 +64,7 @@ class Port_app(Port_cha):
             return False
 
     async def send_str(self, string: str):
-        self.enqueue_send_str(string)
+        self._enqueue_send_str(string)
         future: asyncio.Future[bool] = asyncio.Future()
 
         def callback(success):
@@ -80,7 +80,7 @@ class Port_app(Port_cha):
         self.__try_receive_handle_response()
 
     async def __send_message(self, msg: Literal["UPLINK", "DOWNLINK", "LINKACTIVE"]):
-        self.enqueue_request(cast(MsgReq, PFrameH[msg]))
+        self._enqueue_request(cast(MsgReq, PFrameH[msg]))
         future: asyncio.Future[bool] = asyncio.Future()
 
         def callback(success):
@@ -92,8 +92,8 @@ class Port_app(Port_cha):
             raise RuntimeError("sending message failed")
 
     def __try_receive_handle_response(self):
-        if not self.has_response():
+        if not self._has_response():
             return
-        response = self.get_response()
+        response = self._get_response()
         callback = self.__response_callbacks.pop(0)
         callback(response.success)

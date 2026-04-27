@@ -11,7 +11,7 @@ class TestPort_app(unittest.IsolatedAsyncioTestCase):
         port1.connect(port2)
 
         async def do_tick():
-            while not port1.has_response() and not port2.has_response():
+            while not port1._has_response() and not port2._has_response():
                 port1.do_tick()
                 port2.do_tick()
                 await asyncio.sleep(0)

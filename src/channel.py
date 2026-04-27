@@ -75,20 +75,8 @@ class Port_cha(Port_phy):
         self.__current_data_chunk: int = 0
         self.__is_sending_data: bool = False
 
-    def enqueue_request(self, req: MsgReq):
-        self.__send_buffer.put(req)
-
-    def enqueue_send_str(self, string: str):
-        self.__send_str_buffer.put(string)
-
-    def get_response(self) -> MsgRes:
-        return self.__receive_buffer.get(block=False)
-
     def get_received_str(self) -> str:
         return self.__receive_str_buffer.get(block=False)
-
-    def has_response(self) -> bool:
-        return not self.__receive_buffer.empty()
 
     def has_received_str(self) -> bool:
         return not self.__receive_str_buffer.empty()
@@ -101,6 +89,18 @@ class Port_cha(Port_phy):
             return
 
         self.__timer -= 1
+
+    def _enqueue_request(self, req: MsgReq):
+        self.__send_buffer.put(req)
+
+    def _enqueue_send_str(self, string: str):
+        self.__send_str_buffer.put(string)
+
+    def _get_response(self) -> MsgRes:
+        return self.__receive_buffer.get(block=False)
+
+    def _has_response(self) -> bool:
+        return not self.__receive_buffer.empty()
 
     def __change_state(self):
         self.__timer = (TPB + randint(-TIMER_MAX_ERROR, TIMER_MAX_ERROR)) * T_MULT
