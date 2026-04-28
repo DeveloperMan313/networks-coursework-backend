@@ -16,3 +16,4 @@ def _get_logger_for_OSI_level(OSI_level: str) -> Logger:
 
 phy_logger = _get_logger_for_OSI_level("phy")
 cha_logger = _get_logger_for_OSI_level("cha")
+app_logger = _get_logger_for_OSI_level("app")

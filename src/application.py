@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from typing import Callable, List, Literal, cast
 
 from src.channel import MsgReq, PFrameH, Port_cha
+from src.loggers import app_logger
 from src.physical import PC_phy
 
 MailAddress = int | Literal["*"]
@@ -64,6 +65,7 @@ class Port_app(Port_cha):
             return False
 
     async def send_str(self, string: str):
+        self.__log_debug(f"sending string:\n{string}")
         self._enqueue_send_str(string)
         future: asyncio.Future[bool] = asyncio.Future()
 
@@ -74,12 +76,19 @@ class Port_app(Port_cha):
         success = await future
         if not success:
             raise RuntimeError("sending string failed")
+        self.__log_debug("successfully sent string")
+
+    def get_received_str(self) -> str:
+        string = super().get_received_str()
+        self.__log_debug(f"received string:\n{string}")
+        return string
 
     def do_tick(self):
         super().do_tick()
         self.__try_receive_handle_response()
 
     async def __send_message(self, msg: Literal["UPLINK", "DOWNLINK", "LINKACTIVE"]):
+        self.__log_debug(f"sending message {msg}")
         self._enqueue_request(cast(MsgReq, PFrameH[msg]))
         future: asyncio.Future[bool] = asyncio.Future()
 
@@ -90,6 +99,7 @@ class Port_app(Port_cha):
         success = await future
         if not success:
             raise RuntimeError("sending message failed")
+        self.__log_debug(f"successfully sent {msg}")
 
     def __try_receive_handle_response(self):
         if not self._has_response():
@@ -97,3 +107,6 @@ class Port_app(Port_cha):
         response = self._get_response()
         callback = self.__response_callbacks.pop(0)
         callback(response.success)
+
+    def __log_debug(self, msg: object):
+        app_logger.debug("%s: %s", self._name, msg)
