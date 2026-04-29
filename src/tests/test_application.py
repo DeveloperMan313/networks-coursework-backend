@@ -1,7 +1,9 @@
 import asyncio
 import unittest
+from typing import Tuple
 
-from src.application import Port_app
+from src.application import PC_app, Port_app
+from src.simulation import get_pcs, init_network, start_ticks, stop_ticks
 
 
 class TestPort_app(unittest.IsolatedAsyncioTestCase):
@@ -65,6 +67,49 @@ class TestPort_app(unittest.IsolatedAsyncioTestCase):
             string,
             "Received string should be equal to sent string",
         )
+
+
+class TestPC_app(unittest.IsolatedAsyncioTestCase):
+    async def test_network_pcs_connect_and_add_to_internal_network_addresses(self):
+        pcs = await self.__get_network_connected_on_physical_channel_levels()
+
+        start_ticks()
+
+        addresses = ["Mark", "Anna", "Carl"]
+
+        for pc, address in zip(pcs, addresses):
+            await pc.email_connect(address)
+
+        # sleep is needed because addresses are filled after email_connect is done
+        # and knowing if the network is idle is too complicated
+        time = 20
+        print(f"{self._testMethodName} awaiting for {time} seconds")
+        await asyncio.sleep(time)
+        stop_ticks()
+
+        for pc, address in zip(pcs, addresses):
+            other_addresses = set([a for a in addresses if a != address])
+            self.assertEqual(
+                set(pc.network_addresses),
+                other_addresses,
+                f"{pc.name} should have network_addresses {other_addresses}",
+            )
+
+    async def __get_network_connected_on_physical_channel_levels(
+        self,
+    ) -> Tuple[PC_app, ...]:
+        init_network()
+        pcs = get_pcs()
+
+        start_ticks()
+
+        for pc in pcs:
+            pc.connect_out_port()
+            await pc.channel_uplink("out_port")
+
+        stop_ticks()
+
+        return pcs
 
 
 if __name__ == "__main__":

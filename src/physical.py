@@ -1,7 +1,7 @@
 from enum import Enum, auto
 from queue import Queue
 from random import randint, random
-from typing import Dict, List, Literal, Type, Union
+from typing import Dict, Literal, Union
 
 from src.loggers import phy_logger
 
@@ -20,21 +20,33 @@ TPB = 1  # Ticks Per Baud
 
 TIMER_MAX_ERROR = 0  # will be more stable and faster with ideal timings and TPB = 1
 
-PC_CNT = 3
-
-_pc_ring: List["PC_phy"] = []
-
 
 class PC_phy:
     def __init__(self, name: str):
-        self._in_port = Port_phy(name + " in port")
-        self._out_port = Port_phy(name + " out port")
+        self._in_port = Port_phy(name + ", in port")
+        self._out_port = Port_phy(name + ", out port")
+        self.__prev_pc: PC_phy | None = None
+        self.__next_pc: PC_phy | None = None
 
-    def connect_in_port(self, pc: "PC_phy"):
-        self._in_port.connect(pc._out_port)
+    def set_prev_pc(self, pc: "PC_phy"):
+        if self.__prev_pc is not None:
+            raise RuntimeError("prev_pc already set")
+        self.__prev_pc = pc
 
-    def connect_out_port(self, pc: "PC_phy"):
-        self._out_port.connect(pc._in_port)
+    def set_next_pc(self, pc: "PC_phy"):
+        if self.__next_pc is not None:
+            raise RuntimeError("next_pc already set")
+        self.__next_pc = pc
+
+    def connect_in_port(self):
+        if self.__prev_pc is None:
+            raise RuntimeError("prev_pc not set")
+        self._in_port.connect(self.__prev_pc._out_port)
+
+    def connect_out_port(self):
+        if self.__next_pc is None:
+            raise RuntimeError("next_pc not set")
+        self._out_port.connect(self.__next_pc._in_port)
 
     def disconnect_in_port(self):
         self._in_port.disconnect()
@@ -42,7 +54,7 @@ class PC_phy:
     def disconnect_out_port(self):
         self._out_port.disconnect()
 
-    def do_tick(self):
+    def do_phy_tick(self):
         self._in_port.do_tick()
         self._out_port.do_tick()
 
@@ -220,19 +232,3 @@ class Port_phy:
 
     def __log_debug(self, msg: object):
         phy_logger.debug("%s: %s", self._name, msg)
-
-
-def init_network(PC: Type[PC_phy]):
-    for i in range(PC_CNT):
-        _pc_ring.append(PC(f"PC{i}"))
-
-    for i in range(PC_CNT):
-        prev_i = i - 1
-        next_i = (i + 1) % PC_CNT
-        _pc_ring[i].connect_in_port(_pc_ring[prev_i])
-        _pc_ring[i].connect_out_port(_pc_ring[next_i])
-
-
-def do_tick():
-    for pc in _pc_ring:
-        pc.do_tick()
