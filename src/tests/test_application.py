@@ -6,10 +6,11 @@ from src.application import PC_app, Port_app
 from src.simulation import get_pcs, init_network, start_ticks, stop_ticks
 
 
+# set error probability to 0 for testing
 class TestPort_app(unittest.IsolatedAsyncioTestCase):
     async def test_ports_uplink_linkactive_downlink_bidirectionally(self):
-        port1 = Port_app("port 1")
-        port2 = Port_app("port 2")
+        port1 = Port_app("port 1", 0)
+        port2 = Port_app("port 2", 0)
         port1.connect(port2)
 
         async def do_tick():
@@ -37,8 +38,8 @@ class TestPort_app(unittest.IsolatedAsyncioTestCase):
             self.fail("Port2 should downlink successfully")
 
     async def test_ports_uplink_send_receive_string_bidirectionally(self):
-        port1 = Port_app("port 1")
-        port2 = Port_app("port 2")
+        port1 = Port_app("port 1", 0)
+        port2 = Port_app("port 2", 0)
         port1.connect(port2)
 
         async def do_tick():
@@ -95,10 +96,11 @@ class TestPC_app(unittest.IsolatedAsyncioTestCase):
                 f"{pc.name} should have network_addresses {other_addresses}",
             )
 
+    # set error probability to 0 for testing
     async def __get_network_connected_on_physical_channel_levels(
         self,
     ) -> Tuple[PC_app, ...]:
-        init_network()
+        init_network(0)
         pcs = get_pcs()
 
         start_ticks()

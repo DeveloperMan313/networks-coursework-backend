@@ -3,6 +3,7 @@ from asyncio.tasks import Task
 from typing import List, Never, Tuple
 
 from src.application import PC_app
+from src.physical import BYTE_ERROR_PROB
 
 PC_CNT = 3
 
@@ -12,9 +13,9 @@ _phy_ticks_task: Task[Never] | None = None
 _app_ticks_task: Task[Never] | None = None
 
 
-def init_network():
+def init_network(byte_error_prob=BYTE_ERROR_PROB):
     for i in range(PC_CNT):
-        _pc_ring.append(PC_app(f"PC{i}"))
+        _pc_ring.append(PC_app(f"PC{i}", byte_error_prob))
 
     for i in range(PC_CNT):
         prev_i = i - 1

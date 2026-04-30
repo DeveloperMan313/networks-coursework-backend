@@ -3,10 +3,11 @@ import unittest
 from src.physical import Port_phy
 
 
+# set error probability to 0 for testing
 class TestPort_phy(unittest.TestCase):
     def test_connect_sets_pins_up(self):
-        port1 = Port_phy("port 1")
-        port2 = Port_phy("port 2")
+        port1 = Port_phy("port 1", 0)
+        port2 = Port_phy("port 2", 0)
         port1.connect(port2)
         self.assertTrue(
             port1._get_pin("DTR")
@@ -17,17 +18,17 @@ class TestPort_phy(unittest.TestCase):
         )
 
     def test_connect_fails_when_already_connected(self):
-        port1 = Port_phy("port 1")
-        port2 = Port_phy("port 2")
-        port3 = Port_phy("port 3")
+        port1 = Port_phy("port 1", 0)
+        port2 = Port_phy("port 2", 0)
+        port3 = Port_phy("port 3", 0)
         port1.connect(port2)
         with self.assertRaisesRegex(RuntimeError, "already connected to port"):
             port1.connect(port3)
 
     def test_connect_fails_when_other_already_connected(self):
-        port1 = Port_phy("port 1")
-        port2 = Port_phy("port 2")
-        port3 = Port_phy("port 3")
+        port1 = Port_phy("port 1", 0)
+        port2 = Port_phy("port 2", 0)
+        port3 = Port_phy("port 3", 0)
         port2.connect(port3)
         with self.assertRaisesRegex(
             RuntimeError, "other port already connected to port"
@@ -35,13 +36,13 @@ class TestPort_phy(unittest.TestCase):
             port1.connect(port3)
 
     def test_connect_fails_when_connecting_to_self(self):
-        port1 = Port_phy("port 1")
+        port1 = Port_phy("port 1", 0)
         with self.assertRaisesRegex(RuntimeError, "cannot connect to self"):
             port1.connect(port1)
 
     def test_disconnect_sets_pins_down(self):
-        port1 = Port_phy("port 1")
-        port2 = Port_phy("port 2")
+        port1 = Port_phy("port 1", 0)
+        port2 = Port_phy("port 2", 0)
         port1.connect(port2)
         port1.disconnect()
         self.assertTrue(

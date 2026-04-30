@@ -5,7 +5,7 @@ from random import randint
 from typing import List, Literal, Tuple, cast
 
 from src.loggers import cha_logger
-from src.physical import TIMER_MAX_ERROR, TPB, Port_phy
+from src.physical import BYTE_ERROR_PROB, TIMER_MAX_ERROR, TPB, Port_phy
 
 T_MULT = 16  # cha tick multiplier relative to phy
 
@@ -60,8 +60,8 @@ class Port_cha(Port_phy):
     __GEN_POLY_7_4 = 0b1011
     __POLY_SHIFT = 7 - 4
 
-    def __init__(self, name: str):
-        super().__init__(name)
+    def __init__(self, name: str, byte_error_prob=BYTE_ERROR_PROB):
+        super().__init__(name, byte_error_prob)
         self.__state = PS_cha.INACTIVE
         self.__timer: int = 0
         self.__ticks_waiting: int = 0
@@ -73,7 +73,7 @@ class Port_cha(Port_phy):
         self.__current_str_chunks: List[int] = []
         self.__last_sent_chunk: int | None = None
         self.__current_data_chunk: int = 0
-        self.__is_sending_data: bool = False
+        self.__current_request: MsgReq | Literal[PFrameH.DATA] | None = None
 
     def get_received_str(self) -> str:
         return self.__receive_str_buffer.get(block=False)
@@ -113,10 +113,11 @@ class Port_cha(Port_phy):
 
         if (
             self.__state in (PS_cha.INACTIVE, PS_cha.STANDBY)
-        ) and self.__is_sending_data:
-            fail_res = MsgRes(PFrameH.DATA, False)
+        ) and self.__current_request is not None:
+            fail_res = MsgRes(self.__current_request, False)
             self.__put_to_receive_buffer(fail_res)
-            self.__is_sending_data = False
+            self.__current_str_chunks.clear()
+            self.__current_request = None
 
         match self.__state:
             case PS_cha.INACTIVE:
@@ -134,6 +135,7 @@ class Port_cha(Port_phy):
                         fail_res = MsgRes(cast(MsgReq, req), False)
                         self.__put_to_receive_buffer(fail_res)
                         return
+                    self.__current_request = req
                     self.__send_1chunk_frame(PFrameH.UPLINK)
                     self.__set_state(PS_cha.TX_UPLINK_AWAIT_ACK)
             case PS_cha.STANDBY:
@@ -164,6 +166,7 @@ class Port_cha(Port_phy):
                         fail_res = MsgRes(cast(MsgReq, req), False)
                         self.__put_to_receive_buffer(fail_res)
                         return
+                    self.__current_request = req
                     match req:
                         case PFrameH.DOWNLINK:
                             self.__send_1chunk_frame(PFrameH.DOWNLINK)
@@ -184,7 +187,7 @@ class Port_cha(Port_phy):
                         self.__current_str_chunks.append(lower_chunk)
                         self.__current_str_chunks.append(middle_chunk)
                         self.__current_str_chunks.append(upper_chunk)
-                    self.__is_sending_data = True
+                    self.__current_request = PFrameH.DATA
                     self.__send_1chunk_frame(PFrameH.DATASTART)
                     self.__set_state(PS_cha.TX_DATASTART_AWAIT_ACK)
             case PS_cha.TX_UPLINK_AWAIT_ACK:
@@ -196,6 +199,7 @@ class Port_cha(Port_phy):
                     self.__send_1chunk_frame(PFrameH.NACK)
                     return
                 success_res = MsgRes(PFrameH.UPLINK, True)
+                self.__current_request = None
                 self.__put_to_receive_buffer(success_res)
                 self.__set_state(PS_cha.STANDBY)
             case PS_cha.TX_DOWNLINK_AWAIT_ACK:
@@ -207,6 +211,7 @@ class Port_cha(Port_phy):
                     self.__send_1chunk_frame(PFrameH.NACK)
                     return
                 success_res = MsgRes(PFrameH.DOWNLINK, True)
+                self.__current_request = None
                 self.__put_to_receive_buffer(success_res)
                 self.__set_state(PS_cha.INACTIVE)
             case PS_cha.TX_LINKACTIVE_AWAIT_ACK:
@@ -218,6 +223,7 @@ class Port_cha(Port_phy):
                     self.__send_1chunk_frame(PFrameH.NACK)
                     return
                 success_res = MsgRes(PFrameH.LINKACTIVE, True)
+                self.__current_request = None
                 self.__put_to_receive_buffer(success_res)
                 self.__set_state(PS_cha.STANDBY)
             case PS_cha.TX_DATASTART_AWAIT_ACK:
@@ -265,10 +271,9 @@ class Port_cha(Port_phy):
                 if not self.__frame_head_must_be_of(head, (PFrameH.ACK,)):
                     self.__send_1chunk_frame(PFrameH.NACK)
                     return
-                self.__is_sending_data = False
                 success_res = MsgRes(PFrameH.DATA, True)
+                self.__current_request = None
                 self.__put_to_receive_buffer(success_res)
-                self.__is_sending_data = False
                 self.__set_state(PS_cha.STANDBY)
             case PS_cha.RX_DATA_AWAIT_HEAD_OR_END:
                 self.__ticks_waiting += 1
@@ -361,12 +366,12 @@ class Port_cha(Port_phy):
                 if self.__state == PS_cha.INACTIVE:
                     self.__log_debug("received NACK, ignore because port is INACTIVE")
                     return None
+                if self.__last_sent_chunk is None:
+                    self.__log_debug("received NACK, but haven't sent frame")
+                    self.__set_state(PS_cha.STANDBY)
+                    return None
                 self.__log_debug("received NACK, sending last sent chunk")
-                self.__send_chunk(
-                    self.__last_sent_chunk
-                    if self.__last_sent_chunk
-                    else PFrameH.NACK.value
-                )
+                self.__send_chunk(self.__last_sent_chunk)
                 return None
 
             self.__consecutive_nacks = 0

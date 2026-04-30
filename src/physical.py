@@ -20,11 +20,13 @@ TPB = 1  # Ticks Per Baud
 
 TIMER_MAX_ERROR = 0  # will be more stable and faster with ideal timings and TPB = 1
 
+BYTE_ERROR_PROB = 0.01
+
 
 class PC_phy:
-    def __init__(self, name: str):
-        self._in_port = Port_phy(name + ", in port")
-        self._out_port = Port_phy(name + ", out port")
+    def __init__(self, name: str, byte_error_prob=BYTE_ERROR_PROB):
+        self._in_port = Port_phy(name + ", in port", byte_error_prob)
+        self._out_port = Port_phy(name + ", out port", byte_error_prob)
         self.__prev_pc: PC_phy | None = None
         self.__next_pc: PC_phy | None = None
 
@@ -74,9 +76,9 @@ class PS_phy(Enum):
 
 
 class Port_phy:
-    def __init__(self, name: str, byte_error_prob=0.01):
+    def __init__(self, name: str, byte_error_prob=BYTE_ERROR_PROB):
         self._name = name
-        self._BYTE_ERROR_PROB = byte_error_prob
+        self._byte_error_prob = byte_error_prob
         self.__pins: Dict[PinName, bool] = {
             "DCD": False,
             "RXD": False,
@@ -175,7 +177,7 @@ class Port_phy:
                     return
                 if not self.__send_buffer.empty():
                     self.__current_byte = self.__send_buffer.get()
-                    if random() < self._BYTE_ERROR_PROB:
+                    if random() < self._byte_error_prob:
                         err_idx = randint(0, 7)
                         self.__current_byte ^= 1 << err_idx
                     self.__set_pin("TXD", True)

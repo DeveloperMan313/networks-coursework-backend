@@ -6,7 +6,7 @@ from typing import Callable, Dict, List, Literal, Type, cast
 
 from src.channel import MsgReq, PFrameH, Port_cha
 from src.loggers import app_logger
-from src.physical import PC_phy
+from src.physical import BYTE_ERROR_PROB, PC_phy
 
 MailAddress = str
 EmailID = int
@@ -81,11 +81,11 @@ class PC_app(PC_phy):
         v: k for k, v in __CLASS_TO_TYPE_STR.items()
     }
 
-    def __init__(self, name: str):
-        super().__init__(name)
+    def __init__(self, name: str, byte_error_prob=BYTE_ERROR_PROB):
+        super().__init__(name, byte_error_prob)
         self.__name = name
-        self._in_port = Port_app(name + ", in port")
-        self._out_port = Port_app(name + ", out port")
+        self._in_port = Port_app(name + ", in port", byte_error_prob)
+        self._out_port = Port_app(name + ", out port", byte_error_prob)
         self.__address: MailAddress | None = None
         self.__network_addresses: List[MailAddress] = []
         self.__received_emails: List[Email] = []
@@ -174,8 +174,8 @@ class PC_app(PC_phy):
 
 
 class Port_app(Port_cha):
-    def __init__(self, name: str):
-        super().__init__(name)
+    def __init__(self, name: str, byte_error_prob=BYTE_ERROR_PROB):
+        super().__init__(name, byte_error_prob)
         self.__response_callbacks: List[Callable[[bool], None]] = []
 
     async def channel_uplink(self):
