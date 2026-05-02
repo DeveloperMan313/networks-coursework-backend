@@ -7,11 +7,9 @@ from typing import List, Literal, Tuple, cast
 from src.loggers import cha_logger
 from src.physical import BYTE_ERROR_PROB, TIMER_MAX_ERROR, TPB, Port_phy
 
-T_MULT = 16  # cha tick multiplier relative to phy
+_TIMEOUT_TICKS = 64  # timeout in cha ticks
 
-_TIMEOUT_TICKS = 10  # timeout in cha ticks
-
-_TIMEOUT_NACKS = 5  # max consecutive NACKs
+_TIMEOUT_NACKS = 4  # max consecutive NACKs
 
 
 # port states channel layer
@@ -103,7 +101,7 @@ class Port_cha(Port_phy):
         return not self.__receive_buffer.empty()
 
     def __change_state(self):
-        self.__timer = (TPB + randint(-TIMER_MAX_ERROR, TIMER_MAX_ERROR)) * T_MULT
+        self.__timer = TPB + randint(-TIMER_MAX_ERROR, TIMER_MAX_ERROR)
 
         if self.__ticks_waiting == _TIMEOUT_TICKS:
             self.__ticks_waiting = 0

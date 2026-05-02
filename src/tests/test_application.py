@@ -81,11 +81,15 @@ class TestPC_app(unittest.IsolatedAsyncioTestCase):
         for pc, address in zip(pcs, addresses):
             await pc.email_connect(address)
 
-        # sleep is needed because addresses are filled after email_connect is done
-        # and knowing if the network is idle is too complicated
-        time = 20
-        print(f"{self._testMethodName} awaiting for {time} seconds")
-        await asyncio.sleep(time)
+        async def pcs_addresses_filled():
+            neighbor_cnt = len(pcs) - 1
+            max_iters = 20
+            for _ in range(max_iters):
+                if all(len(pc.network_addresses) == neighbor_cnt for pc in pcs):
+                    return
+                await asyncio.sleep(1)
+
+        await pcs_addresses_filled()
         stop_ticks()
 
         for pc, address in zip(pcs, addresses):
