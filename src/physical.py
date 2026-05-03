@@ -5,6 +5,8 @@ from typing import Dict, Literal, Union
 
 from src.loggers import phy_logger
 
+PCAddress = int
+
 PinName = Literal["DCD", "RXD", "TXD", "DTR", "RTS", "CTS"]
 
 _DTE_DTE_pin_connections: Dict[PinName, PinName] = {
@@ -24,9 +26,9 @@ BYTE_ERROR_PROB = 0.01
 
 
 class PC_phy:
-    def __init__(self, name: str, byte_error_prob=BYTE_ERROR_PROB):
-        self._in_port = Port_phy(name + ", in port", byte_error_prob)
-        self._out_port = Port_phy(name + ", out port", byte_error_prob)
+    def __init__(self, address: PCAddress, byte_error_prob=BYTE_ERROR_PROB):
+        self._in_port = Port_phy(f"PC{address}, in port", byte_error_prob)
+        self._out_port = Port_phy(f"PC{address}, out port", byte_error_prob)
         self.__prev_pc: PC_phy | None = None
         self.__next_pc: PC_phy | None = None
 

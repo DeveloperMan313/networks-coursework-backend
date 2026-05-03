@@ -6,15 +6,15 @@ from typing import Callable, Dict, List, Literal, Type, cast
 
 from src.channel import MsgReq, PFrameH, Port_cha
 from src.loggers import app_logger
-from src.physical import BYTE_ERROR_PROB, PC_phy
+from src.physical import BYTE_ERROR_PROB, PC_phy, PCAddress
 
-MailAddress = str
+EmailAddress = str
 EmailID = int
 
 
 @dataclass
 class AppMsgPayload:
-    source_address: MailAddress
+    source_address: PCAddress
 
     def to_json(self) -> str:
         data = asdict(self)
@@ -28,28 +28,28 @@ class AppMsgPayload:
 
 @dataclass
 class EmailConnect(AppMsgPayload):
-    pass
+    email: EmailAddress
 
 
 @dataclass
 class EmailConnectAck(AppMsgPayload):
-    pass
+    email: EmailAddress
 
 
 @dataclass
 class EmailDisconnect(AppMsgPayload):
-    pass
+    email: EmailAddress
 
 
 @dataclass
 class Email(AppMsgPayload):
     id: EmailID
-    From: MailAddress
-    to: MailAddress
+    From: EmailAddress
+    to: EmailAddress
     date: datetime
     in_reply_to: EmailID
-    resent_from: MailAddress | None
-    resent_to: MailAddress | None
+    resent_from: EmailAddress | None
+    resent_to: EmailAddress | None
     resent_date: datetime | None
 
     def to_json(self) -> str:
@@ -81,13 +81,14 @@ class PC_app(PC_phy):
         v: k for k, v in __CLASS_TO_TYPE_STR.items()
     }
 
-    def __init__(self, name: str, byte_error_prob=BYTE_ERROR_PROB):
-        super().__init__(name, byte_error_prob)
-        self.__name = name
-        self._in_port = Port_app(name + ", in port", byte_error_prob)
-        self._out_port = Port_app(name + ", out port", byte_error_prob)
-        self.__address: MailAddress | None = None
-        self.__network_addresses: List[MailAddress] = []
+    def __init__(self, address: PCAddress, byte_error_prob=BYTE_ERROR_PROB):
+        super().__init__(address, byte_error_prob)
+        self.__name = f"PC{address}"
+        self._in_port = Port_app(f"{self.__name}, in port", byte_error_prob)
+        self._out_port = Port_app(f"{self.__name}, out port", byte_error_prob)
+        self.__address: PCAddress = address
+        self.__email_address: EmailAddress | None = None
+        self.__network_addresses: List[EmailAddress] = []
         self.__received_emails: List[Email] = []
 
     @property
@@ -95,7 +96,7 @@ class PC_app(PC_phy):
         return self.__name
 
     @property
-    def network_addresses(self) -> List[MailAddress]:
+    def network_addresses(self) -> List[EmailAddress]:
         return self.__network_addresses
 
     @property
@@ -120,11 +121,22 @@ class PC_app(PC_phy):
         if port == "out_port":
             return await self._out_port.channel_active()
 
-    async def email_connect(self, address: MailAddress):
-        if self.__address is not None:
+    async def email_connect(self, email: EmailAddress):
+        if self.__email_address is not None:
             raise RuntimeError("already connected to network")
-        await self.__send_message_payload(EmailConnect(source_address=address))
-        self.__address = address
+        await self.__send_message_payload(
+            EmailConnect(source_address=self.__address, email=email)
+        )
+        self.__email_address = email
+
+    async def email_disconnect(self):
+        if self.__email_address is None:
+            raise RuntimeError("not connected to network")
+        await self.__send_message_payload(
+            EmailDisconnect(source_address=self.__address, email=self.__email_address)
+        )
+        self.__email_address = None
+        self.__network_addresses.clear()
 
     def send_email(self, email: Email):
         pass
@@ -145,28 +157,34 @@ class PC_app(PC_phy):
         if payload.source_address == self.__address:
             return
 
+        # only forward message if this PC is not connected
+        if self.__email_address is None:
+            await self.__send_message_payload(payload)
+            return
+
         match payload:
             case EmailConnect():
-                await self.__handle_received_email_connect(payload)
+                if payload.email not in self.__network_addresses:
+                    self.__network_addresses.append(payload.email)
+                await self.__send_message_payload(payload)
+                await self.__send_message_payload(
+                    EmailConnectAck(
+                        source_address=self.__address, email=self.__email_address
+                    )
+                )
+
             case EmailConnectAck():
-                await self.__handle_received_email_connect_ack(payload)
+                if payload.email not in self.__network_addresses:
+                    self.__network_addresses.append(payload.email)
+                await self.__send_message_payload(payload)
+
+            case EmailDisconnect():
+                if payload.email in self.__network_addresses:
+                    self.__network_addresses.remove(payload.email)
+                await self.__send_message_payload(payload)
+
             case _:
                 pass  # TODO handle all classes
-
-    async def __handle_received_email_connect(self, email_connect: EmailConnect):
-        if email_connect.source_address not in self.__network_addresses:
-            self.__network_addresses.append(email_connect.source_address)
-        await self.__send_message_payload(email_connect)
-        if self.__address is not None:
-            await self.__send_message_payload(
-                EmailConnectAck(source_address=self.__address)
-            )
-
-    async def __handle_received_email_connect_ack(
-        self, email_connect_ack: EmailConnectAck
-    ):
-        if email_connect_ack.source_address not in self.__network_addresses:
-            self.__network_addresses.append(email_connect_ack.source_address)
 
     async def __send_message_payload(self, payload: AppMsgPayload):
         string = f"{self.__CLASS_TO_TYPE_STR[type(payload)]}\n{payload.to_json()}"

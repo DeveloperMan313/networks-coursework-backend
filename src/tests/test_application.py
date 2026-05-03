@@ -1,9 +1,14 @@
 import asyncio
+import threading
 import unittest
 from typing import Tuple
 
 from src.application import PC_app, Port_app
-from src.simulation import get_pcs, init_network, start_ticks, stop_ticks
+from src.simulation import (
+    get_pcs,
+    start_network,
+    stop_network,
+)
 
 
 # set error probability to 0 for testing
@@ -70,13 +75,96 @@ class TestPort_app(unittest.IsolatedAsyncioTestCase):
         )
 
 
-class TestPC_app(unittest.IsolatedAsyncioTestCase):
-    async def test_network_pcs_connect_and_add_to_internal_network_addresses(self):
-        pcs = await self.__get_network_connected_on_physical_channel_levels()
+class AsyncBackground:
+    def __init__(self):
+        self.loop = asyncio.new_event_loop()
+        self.thread = threading.Thread(target=self._run, daemon=True)
+        self.thread.start()
 
-        start_ticks()
+    def _run(self):
+        asyncio.set_event_loop(self.loop)
+        self.loop.run_forever()
 
-        addresses = ["Mark", "Anna", "Carl"]
+    def run_func(self, func):
+        return self.loop.call_soon_threadsafe(func)
+
+    def run_coro(self, coro):
+        return asyncio.run_coroutine_threadsafe(coro, self.loop)
+
+    def stop(self):
+        self.loop.call_soon_threadsafe(self.loop.stop)
+        self.thread.join()
+
+
+# set error probability to 0 for testing
+class TestPC_app(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.addresses = ("Mark", "Anna", "Carl")
+        # event loop will be running during all tests, with shared pcs
+        cls.bg = AsyncBackground()
+        ready = asyncio.Event()
+
+        async def run_init():
+            await TestPC_app.__get_network_connected_on_phy_cha_app_levels(
+                cls.addresses
+            )
+            ready.set()
+
+        cls.bg.run_coro(run_init()).result()
+        cls.bg.run_coro(ready.wait()).result()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.bg.run_func(stop_network)
+
+    def setUp(self):
+        self.pcs = get_pcs()
+
+    def test_1_network_pcs_connect_and_add_to_internal_network_addresses(self):
+        for pc, address in zip(self.pcs, self.addresses):
+            other_addresses = set([a for a in self.addresses if a != address])
+            self.assertEqual(
+                set(pc.network_addresses),
+                other_addresses,
+                f"{pc.name} should have network_addresses {other_addresses}",
+            )
+
+    def test_2_network_pcs_disconnect_and_remove_from_internal_network_addresses(
+        self,
+    ):
+        async def test():
+            for pc in self.pcs:
+                await pc.email_disconnect()
+
+            async def pcs_addresses_cleared():
+                max_iters = 20
+                for _ in range(max_iters):
+                    if all(len(pc.network_addresses) == 0 for pc in self.pcs):
+                        return
+                    await asyncio.sleep(1)
+
+            await pcs_addresses_cleared()
+
+            for pc in self.pcs:
+                self.assertEqual(
+                    pc.network_addresses,
+                    [],
+                    f"{pc.name} should have empty network_addresses",
+                )
+
+        self.bg.run_coro(test()).result()
+
+    @staticmethod
+    async def __get_network_connected_on_phy_cha_app_levels(
+        addresses: Tuple[str, ...],
+    ) -> Tuple[PC_app, ...]:
+        start_network(len(addresses), 0)
+        pcs = get_pcs()
+
+        for pc in pcs:
+            pc.connect_out_port()
+            await pc.channel_uplink("out_port")
 
         for pc, address in zip(pcs, addresses):
             await pc.email_connect(address)
@@ -90,30 +178,6 @@ class TestPC_app(unittest.IsolatedAsyncioTestCase):
                 await asyncio.sleep(1)
 
         await pcs_addresses_filled()
-        stop_ticks()
-
-        for pc, address in zip(pcs, addresses):
-            other_addresses = set([a for a in addresses if a != address])
-            self.assertEqual(
-                set(pc.network_addresses),
-                other_addresses,
-                f"{pc.name} should have network_addresses {other_addresses}",
-            )
-
-    # set error probability to 0 for testing
-    async def __get_network_connected_on_physical_channel_levels(
-        self,
-    ) -> Tuple[PC_app, ...]:
-        init_network(0)
-        pcs = get_pcs()
-
-        start_ticks()
-
-        for pc in pcs:
-            pc.connect_out_port()
-            await pc.channel_uplink("out_port")
-
-        stop_ticks()
 
         return pcs
 
