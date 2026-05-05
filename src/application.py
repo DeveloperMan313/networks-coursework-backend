@@ -1,5 +1,6 @@
 import asyncio
 import json
+import re
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from typing import Callable, Dict, List, Literal, Type, cast
@@ -8,8 +9,48 @@ from src.channel import MsgReq, PFrameH, Port_cha
 from src.loggers import app_logger
 from src.physical import BYTE_ERROR_PROB, PC_phy, PCAddress
 
-EmailAddress = str
 EmailID = int
+
+
+class EmailAddress(str):
+    def __new__(cls, value: str):
+        l_min = 3
+        l_max = 30
+        if value == "*":
+            return super().__new__(cls, value)
+        if not l_min <= len(value) <= l_max:
+            raise ValueError(
+                f"{cls.__name__} should be {l_min} to {l_max} characters long"
+            )
+        if not re.fullmatch(r"[\w.-]+", value):
+            raise ValueError(
+                f"{cls.__name__} should consist of only letters, digits and symbols _-."
+            )
+        return super().__new__(cls, value)
+
+
+class EmailSubject(str):
+    def __new__(cls, value: str):
+        l_min = 1
+        l_max = 80
+        if not l_min <= len(value) <= l_max:
+            raise ValueError(
+                f"{cls.__name__} should be {l_min} to {l_max} characters long"
+            )
+        if not value.isprintable():
+            raise ValueError(f"{cls.__name__} should be printable")
+        return super().__new__(cls, value)
+
+
+class EmailBody(str):
+    def __new__(cls, value: str):
+        l_min = 0
+        l_max = 1000
+        if not l_min <= len(value) <= l_max:
+            raise ValueError(
+                f"{cls.__name__} should be {l_min} to {l_max} characters long"
+            )
+        return super().__new__(cls, value)
 
 
 @dataclass
@@ -47,20 +88,24 @@ class Email(AppMsgPayload):
     From: EmailAddress
     to: EmailAddress
     date: datetime
-    in_reply_to: EmailID
+    in_reply_to: EmailID | None
     resent_from: EmailAddress | None
     resent_to: EmailAddress | None
     resent_date: datetime | None
+    subject: EmailSubject
+    body: EmailBody
 
     def to_json(self) -> str:
         data = asdict(self)
         data["date"] = datetime.now(timezone.utc).isoformat()
+        data["from"] = data.pop("From")
         return json.dumps(data)
 
     @classmethod
     def from_json(cls, json_str: str) -> "Email":
         data = json.loads(json_str)
         data["date"] = datetime.fromisoformat(data["date"])
+        data["From"] = data.pop("from")
         return cls(**data)
 
 
@@ -70,15 +115,9 @@ class EmailAck(AppMsgPayload):
 
 
 class PC_app(PC_phy):
-    __CLASS_TO_TYPE_STR: Dict[Type[AppMsgPayload], str] = {
-        EmailConnect: "EMAIL_CONNECT",
-        EmailConnectAck: "EMAIL_CONNECT_ACK",
-        EmailDisconnect: "EMAIL_DISCONNECT",
-        Email: "EMAIL",
-        EmailAck: "EMAIL_ACK",
-    }
     __TYPE_STR_TO_CLASS: Dict[str, Type[AppMsgPayload]] = {
-        v: k for k, v in __CLASS_TO_TYPE_STR.items()
+        c.__name__: c
+        for c in [EmailConnect, EmailConnectAck, EmailDisconnect, Email, EmailAck]
     }
 
     def __init__(self, address: PCAddress, byte_error_prob=BYTE_ERROR_PROB):
@@ -138,11 +177,36 @@ class PC_app(PC_phy):
         self.__email_address = None
         self.__network_addresses.clear()
 
-    def send_email(self, email: Email):
-        pass
+    async def send_email(
+        self, to: EmailAddress, subject: EmailSubject, body: EmailBody
+    ):
+        email = self.__get_blank_email()
+        email.to = to
+        email.subject = subject
+        email.body = body
+        await self.__send_message_payload(email)
 
     async def do_app_tick(self):
         await self.__try_receive_handle_message()
+
+    def __get_blank_email(self) -> Email:
+        if self.__email_address is None:
+            raise RuntimeError("cannot send email while disconnected")
+        now = datetime.now(timezone.utc)
+        email = Email(
+            source_address=self.__address,
+            id=int(now.timestamp() * 1000),
+            From=self.__email_address,
+            to=EmailAddress("*"),
+            date=now,
+            in_reply_to=None,
+            resent_from=None,
+            resent_to=None,
+            resent_date=None,
+            subject=EmailSubject(" "),
+            body=EmailBody(""),
+        )
+        return email
 
     async def __try_receive_handle_message(self):
         if not self._in_port.has_received_str():
@@ -183,11 +247,26 @@ class PC_app(PC_phy):
                     self.__network_addresses.remove(payload.email)
                 await self.__send_message_payload(payload)
 
-            case _:
-                pass  # TODO handle all classes
+            case Email():
+                to = payload.resent_to if payload.resent_to else payload.to
+                if to == self.__email_address:
+                    self.__received_emails.append(payload)
+                    await self.__send_message_payload(
+                        EmailAck(source_address=self.__address, id=payload.id)
+                    )
+                    return
+                if to == EmailAddress("*"):
+                    self.__received_emails.append(payload)
+                    await self.__send_message_payload(
+                        EmailAck(source_address=self.__address, id=payload.id)
+                    )
+                await self.__send_message_payload(payload)
+
+            case EmailAck():
+                await self.__send_message_payload(payload)
 
     async def __send_message_payload(self, payload: AppMsgPayload):
-        string = f"{self.__CLASS_TO_TYPE_STR[type(payload)]}\n{payload.to_json()}"
+        string = f"{type(payload).__name__}\n{payload.to_json()}"
         await self._out_port.send_str(string)
 
 
