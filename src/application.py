@@ -128,6 +128,7 @@ class PC_app(PC_phy):
         self.__address: PCAddress = address
         self.__email_address: EmailAddress | None = None
         self.__network_addresses: List[EmailAddress] = []
+        self.__sent_emails: List[Email] = []
         self.__received_emails: List[Email] = []
 
     @property
@@ -178,13 +179,41 @@ class PC_app(PC_phy):
         self.__network_addresses.clear()
 
     async def send_email(
-        self, to: EmailAddress, subject: EmailSubject, body: EmailBody
+        self,
+        to: EmailAddress,
+        subject: EmailSubject,
+        body: EmailBody,
+        in_reply_to: EmailID | None = None,
     ):
+        if in_reply_to is not None and not any(
+            e.id == in_reply_to for e in self.__sent_emails
+        ):
+            raise ValueError("in_reply_to does not match any of sent emails' IDs")
+        if to != EmailAddress("*") and to not in self.__network_addresses:
+            raise ValueError("to is not in network_addresses")
         email = self.__get_blank_email()
         email.to = to
         email.subject = subject
         email.body = body
+        email.in_reply_to = in_reply_to
         await self.__send_message_payload(email)
+        self.__sent_emails.append(email)
+
+    async def resend_email(self, id: EmailID, to: EmailAddress):
+        if not any(e.id == id for e in self.__sent_emails):
+            raise ValueError("id does not match any of sent emails' IDs")
+        if to != EmailAddress("*") and to not in self.__network_addresses:
+            raise ValueError("to is not in network_addresses")
+        if self.__email_address is None:
+            raise RuntimeError("cannot send email while disconnected")
+        now = datetime.now(timezone.utc)
+        email = next(filter(lambda e: e.id == id, self.__sent_emails))
+        email.id = int(now.timestamp() * 1000)
+        email.resent_from = self.__email_address
+        email.resent_to = to
+        email.resent_date = now
+        await self.__send_message_payload(email)
+        self.__sent_emails.append(email)
 
     async def do_app_tick(self):
         await self.__try_receive_handle_message()
