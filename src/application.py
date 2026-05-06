@@ -3,6 +3,13 @@ from datetime import datetime, timezone
 from typing import Callable, Dict, List, Literal, Type, cast
 
 from src.channel import MsgReq, PFrameH, Port_cha
+from src.entities.app_events import (
+    AppEvent,
+    EmailReceived,
+    EmailSent,
+    PCConnected,
+    PCDisconnected,
+)
 from src.entities.email_protocol import (
     AppMsgPayload,
     Email,
@@ -35,6 +42,7 @@ class PC_app(PC_phy):
         self.__network_addresses: List[EmailAddress] = []
         self.__sent_emails: List[Email] = []
         self.__received_emails: List[Email] = []
+        self.__events: asyncio.Queue[AppEvent] = asyncio.Queue()
 
     @property
     def name(self) -> str:
@@ -45,8 +53,15 @@ class PC_app(PC_phy):
         return self.__network_addresses
 
     @property
+    def sent_emails(self) -> List[Email]:
+        return self.__sent_emails
+
+    @property
     def received_emails(self) -> List[Email]:
         return self.__received_emails
+
+    async def get_event(self) -> AppEvent:
+        return await self.__events.get()
 
     async def channel_uplink(self, port: Literal["in_port", "out_port"]):
         if port == "in_port":
@@ -66,21 +81,23 @@ class PC_app(PC_phy):
         if port == "out_port":
             return await self._out_port.channel_active()
 
-    async def email_connect(self, email: EmailAddress):
+    async def email_connect(self, address: EmailAddress):
         if self.__email_address is not None:
             raise RuntimeError("already connected to network")
         await self.__send_message_payload(
-            EmailConnect(source_address=self.__address, email=email)
+            EmailConnect(source_address=self.__address, address=address)
         )
-        self.__email_address = email
+        self.__email_address = address
 
     async def email_disconnect(self):
         if self.__email_address is None:
             raise RuntimeError("not connected to network")
         await self.__send_message_payload(
-            EmailDisconnect(source_address=self.__address, email=self.__email_address)
+            EmailDisconnect(source_address=self.__address, address=self.__email_address)
         )
         self.__email_address = None
+        for address in self.__network_addresses:
+            await self.__events.put(PCDisconnected(address=address))
         self.__network_addresses.clear()
 
     async def send_email(
@@ -103,6 +120,7 @@ class PC_app(PC_phy):
         email.in_reply_to = in_reply_to
         await self.__send_message_payload(email)
         self.__sent_emails.append(email)
+        await self.__events.put(EmailSent(email=email))
 
     async def resend_email(self, id: EmailID, to: EmailAddress):
         if not any(e.id == id for e in self.__sent_emails):
@@ -119,6 +137,7 @@ class PC_app(PC_phy):
         email.resent_date = now
         await self.__send_message_payload(email)
         self.__sent_emails.append(email)
+        await self.__events.put(EmailSent(email=email))
 
     async def do_app_tick(self):
         await self.__try_receive_handle_message()
@@ -162,34 +181,39 @@ class PC_app(PC_phy):
 
         match payload:
             case EmailConnect():
-                if payload.email not in self.__network_addresses:
-                    self.__network_addresses.append(payload.email)
+                if payload.address not in self.__network_addresses:
+                    await self.__events.put(PCConnected(address=payload.address))
+                    self.__network_addresses.append(payload.address)
                 await self.__send_message_payload(payload)
                 await self.__send_message_payload(
                     EmailConnectAck(
-                        source_address=self.__address, email=self.__email_address
+                        source_address=self.__address, address=self.__email_address
                     )
                 )
 
             case EmailConnectAck():
-                if payload.email not in self.__network_addresses:
-                    self.__network_addresses.append(payload.email)
+                if payload.address not in self.__network_addresses:
+                    await self.__events.put(PCConnected(address=payload.address))
+                    self.__network_addresses.append(payload.address)
                 await self.__send_message_payload(payload)
 
             case EmailDisconnect():
-                if payload.email in self.__network_addresses:
-                    self.__network_addresses.remove(payload.email)
+                if payload.address in self.__network_addresses:
+                    await self.__events.put(PCDisconnected(address=payload.address))
+                    self.__network_addresses.remove(payload.address)
                 await self.__send_message_payload(payload)
 
             case Email():
                 to = payload.resent_to if payload.resent_to else payload.to
                 if to == self.__email_address:
+                    await self.__events.put(EmailReceived(email=payload))
                     self.__received_emails.append(payload)
                     await self.__send_message_payload(
                         EmailAck(source_address=self.__address, id=payload.id)
                     )
                     return
                 if to == EmailAddress("*"):
+                    await self.__events.put(EmailReceived(email=payload))
                     self.__received_emails.append(payload)
                     await self.__send_message_payload(
                         EmailAck(source_address=self.__address, id=payload.id)

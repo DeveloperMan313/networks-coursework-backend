@@ -65,17 +65,17 @@ class AppMsgPayload:
 
 @dataclass
 class EmailConnect(AppMsgPayload):
-    email: EmailAddress
+    address: EmailAddress
 
 
 @dataclass
 class EmailConnectAck(AppMsgPayload):
-    email: EmailAddress
+    address: EmailAddress
 
 
 @dataclass
 class EmailDisconnect(AppMsgPayload):
-    email: EmailAddress
+    address: EmailAddress
 
 
 @dataclass
