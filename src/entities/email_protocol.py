@@ -2,7 +2,7 @@ import json
 import re
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
-from typing import Annotated
+from typing import Annotated, List
 
 from pydantic import AfterValidator
 
@@ -88,11 +88,15 @@ class Email(AppMsgPayload):
     resent_date: datetime | None
     subject: EmailSubject
     body: EmailBody
+    should_receive: List[EmailAddress]  # not serialized
+    have_received: List[EmailAddress]  # not serialized
 
     def to_json(self) -> str:
         data = asdict(self)
         data["date"] = datetime.now(timezone.utc).isoformat()
         data["from"] = data.pop("From")
+        del data["should_receive"]
+        del data["have_received"]
         return json.dumps(data)
 
     @classmethod
@@ -100,9 +104,12 @@ class Email(AppMsgPayload):
         data = json.loads(json_str)
         data["date"] = datetime.fromisoformat(data["date"])
         data["From"] = data.pop("from")
+        data["should_receive"] = []
+        data["have_received"] = []
         return cls(**data)
 
 
 @dataclass
 class EmailAck(AppMsgPayload):
     id: EmailID
+    address: EmailAddress

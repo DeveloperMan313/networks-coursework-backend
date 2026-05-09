@@ -1,7 +1,7 @@
 import json
 from dataclasses import asdict, dataclass
 
-from src.entities.email_protocol import Email, EmailAddress
+from src.entities.email_protocol import Email, EmailAddress, EmailID
 
 
 @dataclass
@@ -24,6 +24,12 @@ class PCDisconnected(AppEvent):
 @dataclass
 class EmailSent(AppEvent):
     email: Email
+
+
+@dataclass
+class EmailGotAck(AppEvent):
+    id: EmailID
+    address: EmailAddress
 
 
 @dataclass

@@ -5,6 +5,7 @@ from typing import Tuple
 
 from src.application import EmailAddress, PC_app, Port_app
 from src.entities.app_events import (
+    EmailGotAck,
     EmailReceived,
     EmailSent,
     PCConnected,
@@ -227,6 +228,20 @@ class TestPC_app(unittest.TestCase):
                 type(await self.pcs[2].get_event()),
                 EmailReceived,
                 f"{self.addresses[2]} should have EmailReceived event",
+            )
+
+            self.assertEqual(
+                type(await self.pcs[0].get_event()),
+                EmailGotAck,
+                f"{self.addresses[0]} should have EmailGotAck event",
+            )
+            self.assertEqual(
+                (
+                    type(await self.pcs[2].get_event()),
+                    type(await self.pcs[2].get_event()),
+                ),
+                (EmailGotAck, EmailGotAck),
+                f"{self.addresses[2]} should have 2 EmailGotAck events",
             )
 
         self.bg.run_coro(test()).result()

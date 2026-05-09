@@ -1,10 +1,12 @@
 import asyncio
+from copy import deepcopy
 from datetime import datetime, timezone
 from typing import Callable, Dict, List, Literal, Type, cast
 
 from src.channel import MsgReq, PFrameH, Port_cha
 from src.entities.app_events import (
     AppEvent,
+    EmailGotAck,
     EmailReceived,
     EmailSent,
     PCConnected,
@@ -138,11 +140,13 @@ class PC_app(PC_phy):
         if self.__email_address is None:
             raise RuntimeError("cannot send email while disconnected")
         now = datetime.now(timezone.utc)
-        email = next(filter(lambda e: e.id == id, self.__sent_emails))
+        email = deepcopy(next(filter(lambda e: e.id == id, self.__sent_emails)))
         email.id = int(now.timestamp() * 1000)
         email.resent_from = self.__email_address
         email.resent_to = to
         email.resent_date = now
+        email.should_receive = self.__network_addresses.copy()
+        email.have_received.clear()
         await self.__send_message_payload(email)
         self.__sent_emails.append(email)
         await self.__events.put(EmailSent(email=email))
@@ -166,6 +170,8 @@ class PC_app(PC_phy):
             resent_date=None,
             subject=" ",
             body="",
+            should_receive=self.__network_addresses.copy(),
+            have_received=[],
         )
         return email
 
@@ -217,18 +223,37 @@ class PC_app(PC_phy):
                     await self.__events.put(EmailReceived(email=payload))
                     self.__received_emails.append(payload)
                     await self.__send_message_payload(
-                        EmailAck(source_address=self.__address, id=payload.id)
+                        EmailAck(
+                            source_address=self.__address,
+                            id=payload.id,
+                            address=self.__email_address,
+                        )
                     )
                     return
                 if to == "*":
                     await self.__events.put(EmailReceived(email=payload))
                     self.__received_emails.append(payload)
                     await self.__send_message_payload(
-                        EmailAck(source_address=self.__address, id=payload.id)
+                        EmailAck(
+                            source_address=self.__address,
+                            id=payload.id,
+                            address=self.__email_address,
+                        )
                     )
                 await self.__send_message_payload(payload)
 
             case EmailAck():
+                email = next(
+                    filter(lambda e: e.id == payload.id, self.__sent_emails), None
+                )
+                if email:
+                    await self.__events.put(
+                        EmailGotAck(id=payload.id, address=payload.address)
+                    )
+                    if payload.address not in email.should_receive:
+                        email.should_receive.append(payload.address)
+                    email.have_received.append(payload.address)
+                    return
                 await self.__send_message_payload(payload)
 
     async def __send_message_payload(self, payload: AppMsgPayload):
