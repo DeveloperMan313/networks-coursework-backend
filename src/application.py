@@ -27,6 +27,8 @@ from src.entities.email_protocol import (
 from src.loggers import app_logger
 from src.physical import BYTE_ERROR_PROB, PC_phy, PCAddress
 
+_MAX_SEND_MSG_RETRIES = 8
+
 
 class PC_app(PC_phy):
     __TYPE_STR_TO_CLASS: Dict[str, Type[AppMsgPayload]] = {
@@ -128,31 +130,37 @@ class PC_app(PC_phy):
         email.subject = subject
         email.body = body
         email.in_reply_to = in_reply_to
+        email.should_receive = [to] if to != "*" else self.__network_addresses.copy()
         await self.__send_message_payload(email)
         self.__sent_emails.append(email)
         await self.__events.put(EmailSent(email=email))
 
     async def resend_email(self, id: EmailID, to: EmailAddress):
-        if not any(e.id == id for e in self.__sent_emails):
-            raise ValueError("id does not match any of sent emails' IDs")
+        all_emails = self.__sent_emails + self.__received_emails
+        if not any(e.id == id for e in all_emails):
+            raise ValueError("id does not match any of emails' IDs")
         if to != "*" and to not in self.__network_addresses:
             raise ValueError("to is not in network_addresses")
         if self.__email_address is None:
             raise RuntimeError("cannot send email while disconnected")
         now = datetime.now(timezone.utc)
-        email = deepcopy(next(filter(lambda e: e.id == id, self.__sent_emails)))
+        email = deepcopy(next(filter(lambda e: e.id == id, all_emails)))
+        email.source_address = self.__address
         email.id = int(now.timestamp() * 1000)
         email.resent_from = self.__email_address
         email.resent_to = to
         email.resent_date = now
-        email.should_receive = self.__network_addresses.copy()
+        email.should_receive = [to] if to != "*" else self.__network_addresses.copy()
         email.have_received.clear()
         await self.__send_message_payload(email)
         self.__sent_emails.append(email)
         await self.__events.put(EmailSent(email=email))
 
     async def do_app_tick(self):
-        await self.__try_receive_handle_message()
+        try:
+            await self.__try_receive_handle_message()
+        except Exception:
+            pass
 
     def __get_blank_email(self) -> Email:
         if self.__email_address is None:
@@ -170,7 +178,7 @@ class PC_app(PC_phy):
             resent_date=None,
             subject=" ",
             body="",
-            should_receive=self.__network_addresses.copy(),
+            should_receive=[],
             have_received=[],
         )
         return email
@@ -280,18 +288,26 @@ class Port_app(Port_cha):
             return False
 
     async def send_str(self, string: str):
-        self.__log_debug(f"sending string:\n{string}")
-        self._enqueue_send_str(string)
-        future: asyncio.Future[bool] = asyncio.Future()
+        retries = 0
 
-        def callback(success):
-            future.set_result(success)
+        while True:
+            if retries == _MAX_SEND_MSG_RETRIES:
+                raise RuntimeError("sending string failed")
 
-        self.__response_callbacks.append(callback)
-        success = await future
-        if not success:
-            raise RuntimeError("sending string failed")
-        self.__log_debug("successfully sent string")
+            self.__log_debug(f"sending string:\n{string}")
+            self._enqueue_send_str(string)
+            future: asyncio.Future[bool] = asyncio.Future()
+
+            def callback(success):
+                future.set_result(success)
+
+            self.__response_callbacks.append(callback)
+            success = await future
+            if not success:
+                retries += 1
+                continue
+            self.__log_debug("successfully sent string")
+            return
 
     def get_received_str(self) -> str:
         string = super().get_received_str()
@@ -303,18 +319,25 @@ class Port_app(Port_cha):
         self.__try_receive_handle_response()
 
     async def __send_message(self, msg: Literal["UPLINK", "DOWNLINK", "LINKACTIVE"]):
-        self.__log_debug(f"sending message {msg}")
-        self._enqueue_request(cast(MsgReq, PFrameH[msg]))
-        future: asyncio.Future[bool] = asyncio.Future()
+        retries = 0
 
-        def callback(success):
-            future.set_result(success)
+        while True:
+            if retries == _MAX_SEND_MSG_RETRIES:
+                raise RuntimeError("sending message failed")
+            self.__log_debug(f"sending message {msg}")
+            self._enqueue_request(cast(MsgReq, PFrameH[msg]))
+            future: asyncio.Future[bool] = asyncio.Future()
 
-        self.__response_callbacks.append(callback)
-        success = await future
-        if not success:
-            raise RuntimeError("sending message failed")
-        self.__log_debug(f"successfully sent {msg}")
+            def callback(success):
+                future.set_result(success)
+
+            self.__response_callbacks.append(callback)
+            success = await future
+            if not success:
+                retries += 1
+                continue
+            self.__log_debug(f"successfully sent {msg}")
+            return
 
     def __try_receive_handle_response(self):
         if not self._has_response():

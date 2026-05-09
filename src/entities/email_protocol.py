@@ -93,7 +93,11 @@ class Email(AppMsgPayload):
 
     def to_json(self) -> str:
         data = asdict(self)
-        data["date"] = datetime.now(timezone.utc).isoformat()
+        data["date"] = data["date"].astimezone(timezone.utc).isoformat()
+        if data["resent_date"]:
+            data["resent_date"] = (
+                data["resent_date"].astimezone(timezone.utc).isoformat()
+            )
         data["from"] = data.pop("From")
         del data["should_receive"]
         del data["have_received"]
@@ -103,6 +107,8 @@ class Email(AppMsgPayload):
     def from_json(cls, json_str: str) -> "Email":
         data = json.loads(json_str)
         data["date"] = datetime.fromisoformat(data["date"])
+        if data["resent_date"]:
+            data["resent_date"] = datetime.fromisoformat(data["resent_date"])
         data["From"] = data.pop("from")
         data["should_receive"] = []
         data["have_received"] = []
