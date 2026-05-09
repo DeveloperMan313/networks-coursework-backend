@@ -3,7 +3,7 @@ import threading
 import unittest
 from typing import Tuple
 
-from src.application import EmailAddress, EmailBody, EmailSubject, PC_app, Port_app
+from src.application import EmailAddress, PC_app, Port_app
 from src.entities.app_events import (
     EmailReceived,
     EmailSent,
@@ -106,7 +106,7 @@ class AsyncBackground:
 class TestPC_app(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.addresses = tuple(EmailAddress(a) for a in ("Mark", "Anna", "Carl"))
+        cls.addresses = ("Mark", "Anna", "Carl")
         # event loop will be running during all tests, with shared pcs
         cls.bg = AsyncBackground()
         ready = asyncio.Event()
@@ -146,12 +146,12 @@ class TestPC_app(unittest.TestCase):
 
     def test_2_network_pcs_send_and_receive_emails(self):
         async def test():
-            subject = EmailSubject("Hi")
-            body1 = EmailBody("Is this working?")
-            body2 = EmailBody("All's set up!")
+            subject = "Hi"
+            body1 = "Is this working?"
+            body2 = "All's set up!"
 
             await self.pcs[0].send_email(self.addresses[2], subject, body1)
-            await self.pcs[2].send_email(EmailAddress("*"), subject, body2)
+            await self.pcs[2].send_email("*", subject, body2)
 
             pc1_emails = self.pcs[0].received_emails
             pc2_emails = self.pcs[1].received_emails

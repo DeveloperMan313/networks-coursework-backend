@@ -49,6 +49,14 @@ class PC_app(PC_phy):
         return self.__name
 
     @property
+    def address(self) -> PCAddress:
+        return self.__address
+
+    @property
+    def email_address(self) -> EmailAddress | None:
+        return self.__email_address
+
+    @property
     def network_addresses(self) -> List[EmailAddress]:
         return self.__network_addresses
 
@@ -111,7 +119,7 @@ class PC_app(PC_phy):
             e.id == in_reply_to for e in self.__sent_emails
         ):
             raise ValueError("in_reply_to does not match any of sent emails' IDs")
-        if to != EmailAddress("*") and to not in self.__network_addresses:
+        if to != "*" and to not in self.__network_addresses:
             raise ValueError("to is not in network_addresses")
         email = self.__get_blank_email()
         email.to = to
@@ -125,7 +133,7 @@ class PC_app(PC_phy):
     async def resend_email(self, id: EmailID, to: EmailAddress):
         if not any(e.id == id for e in self.__sent_emails):
             raise ValueError("id does not match any of sent emails' IDs")
-        if to != EmailAddress("*") and to not in self.__network_addresses:
+        if to != "*" and to not in self.__network_addresses:
             raise ValueError("to is not in network_addresses")
         if self.__email_address is None:
             raise RuntimeError("cannot send email while disconnected")
@@ -150,14 +158,14 @@ class PC_app(PC_phy):
             source_address=self.__address,
             id=int(now.timestamp() * 1000),
             From=self.__email_address,
-            to=EmailAddress("*"),
+            to="*",
             date=now,
             in_reply_to=None,
             resent_from=None,
             resent_to=None,
             resent_date=None,
-            subject=EmailSubject(" "),
-            body=EmailBody(""),
+            subject=" ",
+            body="",
         )
         return email
 
@@ -212,7 +220,7 @@ class PC_app(PC_phy):
                         EmailAck(source_address=self.__address, id=payload.id)
                     )
                     return
-                if to == EmailAddress("*"):
+                if to == "*":
                     await self.__events.put(EmailReceived(email=payload))
                     self.__received_emails.append(payload)
                     await self.__send_message_payload(

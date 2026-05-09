@@ -2,51 +2,49 @@ import json
 import re
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
+from typing import Annotated
+
+from pydantic import AfterValidator
 
 from src.physical import PCAddress
 
 EmailID = int
 
 
-class EmailAddress(str):
-    def __new__(cls, value: str):
-        l_min = 3
-        l_max = 30
-        if value == "*":
-            return super().__new__(cls, value)
-        if not l_min <= len(value) <= l_max:
-            raise ValueError(
-                f"{cls.__name__} should be {l_min} to {l_max} characters long"
-            )
-        if not re.fullmatch(r"[\w.-]+", value):
-            raise ValueError(
-                f"{cls.__name__} should consist of only letters, digits and symbols _-."
-            )
-        return super().__new__(cls, value)
+def validate_email_address(value: str) -> str:
+    l_min, l_max = 3, 30
+    if value == "*":
+        return value
+    if not (l_min <= len(value) <= l_max):
+        raise ValueError(f"length must be {l_min}–{l_max}")
+    if not re.fullmatch(r"[\w.-]+", value):
+        raise ValueError("only letters, digits, _, ., - allowed")
+    return value
 
 
-class EmailSubject(str):
-    def __new__(cls, value: str):
-        l_min = 1
-        l_max = 80
-        if not l_min <= len(value) <= l_max:
-            raise ValueError(
-                f"{cls.__name__} should be {l_min} to {l_max} characters long"
-            )
-        if not value.isprintable():
-            raise ValueError(f"{cls.__name__} should be printable")
-        return super().__new__(cls, value)
+EmailAddress = Annotated[str, AfterValidator(validate_email_address)]
 
 
-class EmailBody(str):
-    def __new__(cls, value: str):
-        l_min = 0
-        l_max = 1000
-        if not l_min <= len(value) <= l_max:
-            raise ValueError(
-                f"{cls.__name__} should be {l_min} to {l_max} characters long"
-            )
-        return super().__new__(cls, value)
+def validate_email_subject(value: str) -> str:
+    l_min, l_max = 1, 80
+    if not (l_min <= len(value) <= l_max):
+        raise ValueError(f"length must be {l_min}–{l_max}")
+    if not value.isprintable():
+        raise ValueError("should not contain unprintable characters")
+    return value
+
+
+EmailSubject = Annotated[str, AfterValidator(validate_email_subject)]
+
+
+def validate_email_body(value: str) -> str:
+    l_min, l_max = 0, 1000
+    if not (l_min <= len(value) <= l_max):
+        raise ValueError(f"length must be {l_min}–{l_max}")
+    return value
+
+
+EmailBody = Annotated[str, AfterValidator(validate_email_body)]
 
 
 @dataclass
