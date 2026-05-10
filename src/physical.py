@@ -42,21 +42,21 @@ class PC_phy:
             raise RuntimeError("next_pc already set")
         self.__next_pc = pc
 
-    def connect_in_port(self):
-        if self.__prev_pc is None:
-            raise RuntimeError("prev_pc not set")
-        self._in_port.connect(self.__prev_pc._out_port)
+    def connect_port(self, port: Literal["in", "out"]):
+        if port == "in":
+            if self.__prev_pc is None:
+                raise RuntimeError("prev_pc not set")
+            self._in_port.connect(self.__prev_pc._out_port)
+        if port == "out":
+            if self.__next_pc is None:
+                raise RuntimeError("next_pc not set")
+            self._out_port.connect(self.__next_pc._in_port)
 
-    def connect_out_port(self):
-        if self.__next_pc is None:
-            raise RuntimeError("next_pc not set")
-        self._out_port.connect(self.__next_pc._in_port)
-
-    def disconnect_in_port(self):
-        self._in_port.disconnect()
-
-    def disconnect_out_port(self):
-        self._out_port.disconnect()
+    def disconnect_port(self, port: Literal["in", "out"]):
+        if port == "in":
+            self._in_port.disconnect()
+        if port == "out":
+            self._out_port.disconnect()
 
     def do_phy_tick(self):
         self._in_port.do_tick()

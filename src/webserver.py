@@ -1,14 +1,19 @@
+from typing import Literal
+
 from fastapi import APIRouter, Depends, FastAPI, HTTPException
 
 from src import simulation
 from src.entities.api import (
     Email,
     GetPCEmailsResponse,
+    GetPCPortStatesResponse,
     GetPCsResponse,
     PCId,
     RegisterPCRequest,
     ResendPCEmailRequest,
     SendPCEmailRequest,
+    SetPCPortStateRequest,
+    TestPCPortLinkActiveResponse,
 )
 from src.entities.email_protocol import EmailID
 
@@ -22,6 +27,8 @@ async def validate_registered_pc_id(pc_id: PCId) -> PCId:
     return pc_id
 
 
+pcs_router = APIRouter(prefix="/pcs/{pc_id}")
+
 registered_pcs_router = APIRouter(
     prefix="/pcs/{pc_id}",
     dependencies=[Depends(validate_registered_pc_id)],
@@ -34,7 +41,7 @@ def get_pcs():
     return {"pcs": {pc.address: pc.email_address for pc in pcs}}
 
 
-@app.put("/pcs/{pc_id}/register", tags=["PCs"])
+@pcs_router.put("/register", tags=["PCs"])
 async def register_pc(pc_id: PCId, req: RegisterPCRequest):
     pcs = simulation.get_pcs()
     pc = pcs[pc_id - 1]
@@ -44,13 +51,62 @@ async def register_pc(pc_id: PCId, req: RegisterPCRequest):
     if req.address in [pc.email_address for pc in pcs]:
         raise HTTPException(status_code=409, detail="Address already registered")
 
-    await pc.email_connect(req.address)
+    try:
+        await pc.email_connect(req.address)
+    except RuntimeError as e:
+        raise HTTPException(status_code=422, detail=str(e))
 
 
 @registered_pcs_router.put("/unregister", tags=["PCs"])
 async def unregister_pc(pc_id: PCId):
     pc = simulation.get_pcs()[pc_id - 1]
-    await pc.email_disconnect()
+    try:
+        await pc.email_disconnect()
+    except RuntimeError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+
+
+@pcs_router.get("/ports", response_model=GetPCPortStatesResponse, tags=["Ports"])
+def get_pc_port_states(pc_id: PCId):
+    pc = simulation.get_pcs()[pc_id - 1]
+    return pc.get_port_states()
+
+
+@pcs_router.put(
+    "/ports/{port}/{layer}",
+    description="Not idempotent, changing state to itself will cause error",
+    tags=["Ports"],
+)
+async def set_pc_port_state(
+    pc_id: PCId,
+    port: Literal["in", "out"],
+    layer: Literal["phy", "dtl"],
+    req: SetPCPortStateRequest,
+):
+    pc = simulation.get_pcs()[pc_id - 1]
+    try:
+        match (layer, req.is_up):
+            case ("phy", True):
+                pc.connect_port(port)
+            case ("phy", False):
+                pc.disconnect_port(port)
+            case ("dtl", True):
+                await pc.data_link_uplink(port)
+            case ("dtl", False):
+                await pc.data_link_downlink(port)
+    except RuntimeError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+
+
+@pcs_router.post(
+    "/ports/{port}/test-link-active",
+    response_model=TestPCPortLinkActiveResponse,
+    description="Side effect: might downlink port if it was physically disconnected",
+    tags=["Ports"],
+)
+async def test_pc_port_link_active(pc_id: PCId, port: Literal["in", "out"]):
+    pc = simulation.get_pcs()[pc_id - 1]
+    return {"active": await pc.data_link_active(port)}
 
 
 @registered_pcs_router.get(
@@ -81,4 +137,5 @@ async def resend_pc_email(pc_id: PCId, email_id: EmailID, req: ResendPCEmailRequ
         raise HTTPException(status_code=422, detail=str(e))
 
 
+app.include_router(pcs_router)
 app.include_router(registered_pcs_router)

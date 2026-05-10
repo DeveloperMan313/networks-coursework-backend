@@ -109,7 +109,7 @@ class Port_dtl(Port_phy):
         if self.__ticks_waiting == _TIMEOUT_TICKS:
             self.__ticks_waiting = 0
             self.__log_debug("response timeout reached")
-            self.__set_state(PS_dtl.STANDBY)
+            self.__set_state(PS_dtl.INACTIVE)
             return
 
         if (
@@ -139,6 +139,11 @@ class Port_dtl(Port_phy):
                     self.__current_request = req
                     self.__send_1chunk_frame(PFrameH.UPLINK)
                     self.__set_state(PS_dtl.TX_UPLINK_AWAIT_ACK)
+                    return
+                if not self.__send_str_buffer.empty():
+                    self.__send_str_buffer.get()
+                    fail_res = MsgRes(PFrameH.DATA, False)
+                    self.__put_to_receive_buffer(fail_res)
             case PS_dtl.STANDBY:
                 head = self.__try_receive_1chunk_frame()
                 if head:

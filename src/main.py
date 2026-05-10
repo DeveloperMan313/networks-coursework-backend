@@ -15,11 +15,10 @@ async def main():
     server = Server(config)
 
     start_network(PC_CNT)
-    # TODO think how to let user register without connecting network beforehand
     pcs = get_pcs()
     for pc in pcs:
-        pc.connect_out_port()
-        await pc.data_link_uplink("out_port")
+        pc.connect_port("out")
+        await pc.data_link_uplink("out")
 
     server_task = asyncio.create_task(server.serve())
 

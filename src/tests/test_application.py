@@ -226,8 +226,8 @@ class TestPC_app(unittest.TestCase):
         pcs = get_pcs()
 
         for pc in pcs:
-            pc.connect_out_port()
-            await pc.data_link_uplink("out_port")
+            pc.connect_port("out")
+            await pc.data_link_uplink("out")
 
         for pc, address in zip(pcs, addresses):
             await pc.email_connect(address)

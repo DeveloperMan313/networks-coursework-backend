@@ -54,6 +54,21 @@ class RegisterPCRequest(BaseModel):
     address: EmailAddress
 
 
+class GetPCPortStatesResponse(BaseModel):
+    in_phy_up: bool
+    in_dtl_up: bool
+    out_phy_up: bool
+    out_dtl_up: bool
+
+
+class SetPCPortStateRequest(BaseModel):
+    is_up: bool
+
+
+class TestPCPortLinkActiveResponse(BaseModel):
+    active: bool
+
+
 class GetPCEmailsResponse(BaseModel):
     sent: List[Email]
     received: List[Email]
