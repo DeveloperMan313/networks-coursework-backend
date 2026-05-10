@@ -10,6 +10,7 @@ from src.entities.app_events import (
     EmailSent,
     PCConnected,
     PCDisconnected,
+    PortStateChanged,
 )
 from src.simulation import (
     get_pcs,
@@ -113,7 +114,7 @@ class TestPC_app(unittest.TestCase):
         ready = asyncio.Event()
 
         async def run_init():
-            await TestPC_app.__get_network_connected_on_phy_dtl_app_levels(
+            await TestPC_app.__get_network_connected_on_phy_dtl_app_layers(
                 cls.addresses
             )
             ready.set()
@@ -136,6 +137,21 @@ class TestPC_app(unittest.TestCase):
                     set(pc.network_addresses),
                     other_addresses,
                     f"{pc.name} should have network_addresses {other_addresses}",
+                )
+                self.assertEqual(
+                    (
+                        type(await pc.get_event()),
+                        type(await pc.get_event()),
+                        type(await pc.get_event()),
+                        type(await pc.get_event()),
+                    ),
+                    (
+                        PortStateChanged,
+                        PortStateChanged,
+                        PortStateChanged,
+                        PortStateChanged,
+                    ),
+                    f"{pc.name} should have 4 PortStateChanged events",
                 )
                 self.assertEqual(
                     (type(await pc.get_event()), type(await pc.get_event())),
@@ -277,7 +293,7 @@ class TestPC_app(unittest.TestCase):
         self.bg.run_coro(test()).result()
 
     @staticmethod
-    async def __get_network_connected_on_phy_dtl_app_levels(
+    async def __get_network_connected_on_phy_dtl_app_layers(
         addresses: Tuple[EmailAddress, ...],
     ) -> Tuple[PC_app, ...]:
         start_network(len(addresses), 0)

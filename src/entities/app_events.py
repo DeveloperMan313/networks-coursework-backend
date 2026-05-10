@@ -1,5 +1,6 @@
 import json
 from dataclasses import asdict, dataclass
+from typing import Literal
 
 from src.entities.email_protocol import Email, EmailAddress, EmailID
 
@@ -35,3 +36,10 @@ class EmailGotAck(AppEvent):
 @dataclass
 class EmailReceived(AppEvent):
     email: Email
+
+
+@dataclass
+class PortStateChanged(AppEvent):
+    port: Literal["in", "out"]
+    layer: Literal["phy", "dtl"]
+    is_up: bool

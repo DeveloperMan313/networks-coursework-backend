@@ -1,5 +1,6 @@
 import asyncio
 from copy import deepcopy
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Callable, Dict, List, Literal, Type, cast
 
@@ -11,6 +12,7 @@ from src.entities.app_events import (
     EmailSent,
     PCConnected,
     PCDisconnected,
+    PortStateChanged,
 )
 from src.entities.email_protocol import (
     AppMsgPayload,
@@ -30,6 +32,14 @@ from src.physical import BYTE_ERROR_PROB, PC_phy, PCAddress
 _MAX_SEND_MSG_RETRIES = 8
 
 
+@dataclass
+class PortStates:
+    in_phy_up: bool = False
+    in_dtl_up: bool = False
+    out_phy_up: bool = False
+    out_dtl_up: bool = False
+
+
 class PC_app(PC_phy):
     __TYPE_STR_TO_CLASS: Dict[str, Type[AppMsgPayload]] = {
         c.__name__: c
@@ -46,6 +56,7 @@ class PC_app(PC_phy):
         self.__network_addresses: List[EmailAddress] = []
         self.__sent_emails: List[Email] = []
         self.__received_emails: List[Email] = []
+        self.__port_states = PortStates()
         self.__events: asyncio.Queue[AppEvent] = asyncio.Queue()
 
     @property
@@ -157,10 +168,39 @@ class PC_app(PC_phy):
         await self.__events.put(EmailSent(email=email))
 
     async def do_app_tick(self):
+        await self.__update_port_states()
         try:
             await self.__try_receive_handle_message()
         except Exception:
             pass
+
+    async def __update_port_states(self):
+        curr_states = self.__port_states
+        new_states = PortStates(
+            in_phy_up=self._in_port.phy_is_up(),
+            in_dtl_up=self._in_port.dtl_is_up(),
+            out_phy_up=self._out_port.phy_is_up(),
+            out_dtl_up=self._out_port.dtl_is_up(),
+        )
+
+        if curr_states.in_phy_up != new_states.in_phy_up:
+            await self.__events.put(
+                PortStateChanged(port="in", layer="phy", is_up=new_states.in_phy_up)
+            )
+        if curr_states.in_dtl_up != new_states.in_dtl_up:
+            await self.__events.put(
+                PortStateChanged(port="in", layer="dtl", is_up=new_states.in_dtl_up)
+            )
+        if curr_states.out_phy_up != new_states.out_phy_up:
+            await self.__events.put(
+                PortStateChanged(port="out", layer="phy", is_up=new_states.out_phy_up)
+            )
+        if curr_states.out_dtl_up != new_states.out_dtl_up:
+            await self.__events.put(
+                PortStateChanged(port="out", layer="dtl", is_up=new_states.out_dtl_up)
+            )
+
+        self.__port_states = new_states
 
     def __get_blank_email(self) -> Email:
         if self.__email_address is None:

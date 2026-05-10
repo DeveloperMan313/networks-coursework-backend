@@ -73,6 +73,9 @@ class Port_dtl(Port_phy):
         self.__current_data_chunk: int = 0
         self.__current_request: MsgReq | Literal[PFrameH.DATA] | None = None
 
+    def dtl_is_up(self) -> bool:
+        return self.__state != PS_dtl.INACTIVE
+
     def get_received_str(self) -> str:
         return self.__receive_str_buffer.get(block=False)
 

@@ -97,6 +97,9 @@ class Port_phy:
         self.__current_byte: int = 0
         self.__current_bit_mask: int = 1
 
+    def phy_is_up(self) -> bool:
+        return self.__state != PS_phy.INACTIVE
+
     def connect(self, port: "Port_phy"):
         if self.__connected_port:
             raise RuntimeError("already connected to port")
