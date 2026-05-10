@@ -33,19 +33,19 @@ class TestPort_app(unittest.IsolatedAsyncioTestCase):
 
         asyncio.create_task(do_tick())
         try:
-            await port2.channel_uplink()
+            await port2.data_link_uplink()
         except RuntimeError:
             self.fail("Port2 should uplink successfully")
 
         asyncio.create_task(do_tick())
-        channel_active = await port1.channel_active()
+        data_link_active = await port1.data_link_active()
         self.assertEqual(
-            channel_active, True, "Port1 should report that channel is active"
+            data_link_active, True, "Port1 should report that data link is active"
         )
 
         asyncio.create_task(do_tick())
         try:
-            await port2.channel_downlink()
+            await port2.data_link_downlink()
         except RuntimeError:
             self.fail("Port2 should downlink successfully")
 
@@ -62,7 +62,7 @@ class TestPort_app(unittest.IsolatedAsyncioTestCase):
 
         asyncio.create_task(do_tick())
         try:
-            await port2.channel_uplink()
+            await port2.data_link_uplink()
         except RuntimeError:
             self.fail("Port2 should uplink successfully")
 
@@ -113,7 +113,7 @@ class TestPC_app(unittest.TestCase):
         ready = asyncio.Event()
 
         async def run_init():
-            await TestPC_app.__get_network_connected_on_phy_cha_app_levels(
+            await TestPC_app.__get_network_connected_on_phy_dtl_app_levels(
                 cls.addresses
             )
             ready.set()
@@ -277,7 +277,7 @@ class TestPC_app(unittest.TestCase):
         self.bg.run_coro(test()).result()
 
     @staticmethod
-    async def __get_network_connected_on_phy_cha_app_levels(
+    async def __get_network_connected_on_phy_dtl_app_levels(
         addresses: Tuple[EmailAddress, ...],
     ) -> Tuple[PC_app, ...]:
         start_network(len(addresses), 0)
@@ -285,7 +285,7 @@ class TestPC_app(unittest.TestCase):
 
         for pc in pcs:
             pc.connect_out_port()
-            await pc.channel_uplink("out_port")
+            await pc.data_link_uplink("out_port")
 
         for pc, address in zip(pcs, addresses):
             await pc.email_connect(address)

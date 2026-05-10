@@ -1,13 +1,13 @@
 import unittest
 
-from src.channel import MsgRes, PFrameH, Port_cha
+from src.data_link import MsgRes, PFrameH, Port_dtl
 
 
 # set error probability to 0 for testing
-class TestPort_cha(unittest.TestCase):
+class TestPort_dtl(unittest.TestCase):
     def test_ports_connecting_disconnecting_bidirectionally(self):
-        port1 = Port_cha("port 1", 0)
-        port2 = Port_cha("port 2", 0)
+        port1 = Port_dtl("port 1", 0)
+        port2 = Port_dtl("port 2", 0)
         port1.connect(port2)
         port1._enqueue_request(PFrameH.UPLINK)
         while not port1._has_response():
@@ -30,8 +30,8 @@ class TestPort_cha(unittest.TestCase):
         )
 
     def test_linkactive_bidirectionally(self):
-        port1 = Port_cha("port 1", 0)
-        port2 = Port_cha("port 2", 0)
+        port1 = Port_dtl("port 1", 0)
+        port2 = Port_dtl("port 2", 0)
         port1.connect(port2)
         port1._enqueue_request(PFrameH.UPLINK)
         while not port1._has_response():
@@ -64,8 +64,8 @@ class TestPort_cha(unittest.TestCase):
         )
 
     def test_send_str_linkactive_send_str_bidirectionally(self):
-        port1 = Port_cha("port 1", 0)
-        port2 = Port_cha("port 2", 0)
+        port1 = Port_dtl("port 1", 0)
+        port2 = Port_dtl("port 2", 0)
         port1.connect(port2)
         port1._enqueue_request(PFrameH.UPLINK)
         while not port1._has_response():

@@ -3,7 +3,7 @@ from copy import deepcopy
 from datetime import datetime, timezone
 from typing import Callable, Dict, List, Literal, Type, cast
 
-from src.channel import MsgReq, PFrameH, Port_cha
+from src.data_link import MsgReq, PFrameH, Port_dtl
 from src.entities.app_events import (
     AppEvent,
     EmailGotAck,
@@ -75,23 +75,23 @@ class PC_app(PC_phy):
     async def get_event(self) -> AppEvent:
         return await self.__events.get()
 
-    async def channel_uplink(self, port: Literal["in_port", "out_port"]):
+    async def data_link_uplink(self, port: Literal["in_port", "out_port"]):
         if port == "in_port":
-            await self._in_port.channel_uplink()
+            await self._in_port.data_link_uplink()
         if port == "out_port":
-            await self._out_port.channel_uplink()
+            await self._out_port.data_link_uplink()
 
-    async def channel_downlink(self, port: Literal["in_port", "out_port"]):
+    async def data_link_downlink(self, port: Literal["in_port", "out_port"]):
         if port == "in_port":
-            await self._in_port.channel_downlink()
+            await self._in_port.data_link_downlink()
         if port == "out_port":
-            await self._out_port.channel_downlink()
+            await self._out_port.data_link_downlink()
 
-    async def channel_active(self, port: Literal["in_port", "out_port"]) -> bool:
+    async def data_link_active(self, port: Literal["in_port", "out_port"]) -> bool:
         if port == "in_port":
-            return await self._in_port.channel_active()
+            return await self._in_port.data_link_active()
         if port == "out_port":
-            return await self._out_port.channel_active()
+            return await self._out_port.data_link_active()
 
     async def email_connect(self, address: EmailAddress):
         if self.__email_address is not None:
@@ -269,18 +269,18 @@ class PC_app(PC_phy):
         await self._out_port.send_str(string)
 
 
-class Port_app(Port_cha):
+class Port_app(Port_dtl):
     def __init__(self, name: str, byte_error_prob=BYTE_ERROR_PROB):
         super().__init__(name, byte_error_prob)
         self.__response_callbacks: List[Callable[[bool], None]] = []
 
-    async def channel_uplink(self):
+    async def data_link_uplink(self):
         await self.__send_message("UPLINK")
 
-    async def channel_downlink(self):
+    async def data_link_downlink(self):
         await self.__send_message("DOWNLINK")
 
-    async def channel_active(self) -> bool:
+    async def data_link_active(self) -> bool:
         try:
             await self.__send_message("LINKACTIVE")
             return True

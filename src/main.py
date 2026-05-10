@@ -19,7 +19,7 @@ async def main():
     pcs = get_pcs()
     for pc in pcs:
         pc.connect_out_port()
-        await pc.channel_uplink("out_port")
+        await pc.data_link_uplink("out_port")
 
     server_task = asyncio.create_task(server.serve())
 

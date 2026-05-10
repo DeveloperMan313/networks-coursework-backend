@@ -2,7 +2,7 @@ import cProfile
 import unittest
 
 from src.tests.test_application import TestPC_app, TestPort_app
-from src.tests.test_channel import TestPort_cha
+from src.tests.test_data_link import TestPort_dtl
 from src.tests.test_physical import TestPort_phy
 
 if __name__ == "__main__":
@@ -10,7 +10,7 @@ if __name__ == "__main__":
     suite = unittest.TestSuite()
 
     suite.addTests(loader.loadTestsFromTestCase(TestPort_phy))
-    suite.addTests(loader.loadTestsFromTestCase(TestPort_cha))
+    suite.addTests(loader.loadTestsFromTestCase(TestPort_dtl))
     suite.addTests(loader.loadTestsFromTestCase(TestPort_app))
     suite.addTests(loader.loadTestsFromTestCase(TestPC_app))
 
