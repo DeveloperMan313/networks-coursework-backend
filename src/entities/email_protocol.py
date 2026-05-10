@@ -48,7 +48,7 @@ EmailBody = Annotated[str, AfterValidator(validate_email_body)]
 
 
 @dataclass
-class AppMsgPayload:
+class AppMsg:
     source_address: PCAddress
 
     def to_json(self) -> str:
@@ -56,28 +56,28 @@ class AppMsgPayload:
         return json.dumps(data)
 
     @classmethod
-    def from_json(cls, json_str: str) -> "AppMsgPayload":
+    def from_json(cls, json_str: str) -> "AppMsg":
         data = json.loads(json_str)
         return cls(**data)
 
 
 @dataclass
-class EmailConnect(AppMsgPayload):
+class EmailConnect(AppMsg):
     address: EmailAddress
 
 
 @dataclass
-class EmailConnectAck(AppMsgPayload):
+class EmailConnectAck(AppMsg):
     address: EmailAddress
 
 
 @dataclass
-class EmailDisconnect(AppMsgPayload):
+class EmailDisconnect(AppMsg):
     address: EmailAddress
 
 
 @dataclass
-class Email(AppMsgPayload):
+class Email(AppMsg):
     id: EmailID
     From: EmailAddress
     to: EmailAddress
@@ -116,6 +116,6 @@ class Email(AppMsgPayload):
 
 
 @dataclass
-class EmailAck(AppMsgPayload):
+class EmailAck(AppMsg):
     id: EmailID
     address: EmailAddress

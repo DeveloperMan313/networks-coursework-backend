@@ -5,7 +5,7 @@ from typing import Callable, Dict, List, Literal, Type, cast
 
 from src.data_link import MsgReq, PFrameH, Port_dtl
 from src.entities.email_protocol import (
-    AppMsgPayload,
+    AppMsg,
     Email,
     EmailAck,
     EmailAddress,
@@ -23,7 +23,7 @@ _MAX_SEND_MSG_RETRIES = 8
 
 
 class PC_app(PC_phy):
-    __TYPE_STR_TO_CLASS: Dict[str, Type[AppMsgPayload]] = {
+    __TYPE_STR_TO_CLASS: Dict[str, Type[AppMsg]] = {
         c.__name__: c
         for c in [EmailConnect, EmailConnectAck, EmailDisconnect, Email, EmailAck]
     }
@@ -92,7 +92,7 @@ class PC_app(PC_phy):
     async def email_connect(self, address: EmailAddress):
         if self.__email_address is not None:
             raise RuntimeError("already connected to network")
-        await self.__send_message_payload(
+        await self.__send_message(
             EmailConnect(source_address=self.__address, address=address)
         )
         self.__email_address = address
@@ -100,7 +100,7 @@ class PC_app(PC_phy):
     async def email_disconnect(self):
         if self.__email_address is None:
             raise RuntimeError("not connected to network")
-        await self.__send_message_payload(
+        await self.__send_message(
             EmailDisconnect(source_address=self.__address, address=self.__email_address)
         )
         self.__email_address = None
@@ -125,7 +125,7 @@ class PC_app(PC_phy):
         email.body = body
         email.in_reply_to = in_reply_to
         email.should_receive = [to] if to != "*" else self.__network_addresses.copy()
-        await self.__send_message_payload(email)
+        await self.__send_message(email)
         self.__sent_emails.append(email)
 
     async def resend_email(self, id: EmailID, to: EmailAddress):
@@ -145,14 +145,14 @@ class PC_app(PC_phy):
         email.resent_date = now
         email.should_receive = [to] if to != "*" else self.__network_addresses.copy()
         email.have_received.clear()
-        await self.__send_message_payload(email)
+        await self.__send_message(email)
         self.__sent_emails.append(email)
 
     async def do_app_tick(self):
         try:
             await self.__try_receive_handle_message()
-        except Exception:
-            pass
+        except Exception as e:
+            print(e)
 
     def __get_blank_email(self) -> Email:
         if self.__email_address is None:
@@ -180,76 +180,74 @@ class PC_app(PC_phy):
             return
 
         string = self._in_port.get_received_str()
-        type, payload = string.split("\n", 1)
+        type, msg = string.split("\n", 1)
         msg_class = self.__TYPE_STR_TO_CLASS[type]
-        payload = msg_class.from_json(payload)
+        msg = msg_class.from_json(msg)
 
         # drop message that was sent by this PC
-        if payload.source_address == self.__address:
+        if msg.source_address == self.__address:
             return
 
         # only forward message if this PC is not connected
         if self.__email_address is None:
-            await self.__send_message_payload(payload)
+            await self.__send_message(msg)
             return
 
-        match payload:
+        match msg:
             case EmailConnect():
-                if payload.address not in self.__network_addresses:
-                    self.__network_addresses.append(payload.address)
-                await self.__send_message_payload(payload)
-                await self.__send_message_payload(
+                if msg.address not in self.__network_addresses:
+                    self.__network_addresses.append(msg.address)
+                await self.__send_message(msg)
+                await self.__send_message(
                     EmailConnectAck(
                         source_address=self.__address, address=self.__email_address
                     )
                 )
 
             case EmailConnectAck():
-                if payload.address not in self.__network_addresses:
-                    self.__network_addresses.append(payload.address)
-                await self.__send_message_payload(payload)
+                if msg.address not in self.__network_addresses:
+                    self.__network_addresses.append(msg.address)
+                await self.__send_message(msg)
 
             case EmailDisconnect():
-                if payload.address in self.__network_addresses:
-                    self.__network_addresses.remove(payload.address)
-                await self.__send_message_payload(payload)
+                if msg.address in self.__network_addresses:
+                    self.__network_addresses.remove(msg.address)
+                await self.__send_message(msg)
 
             case Email():
-                to = payload.resent_to if payload.resent_to else payload.to
+                to = msg.resent_to if msg.resent_to else msg.to
                 if to == self.__email_address:
-                    self.__received_emails.append(payload)
-                    await self.__send_message_payload(
+                    self.__received_emails.append(msg)
+                    await self.__send_message(
                         EmailAck(
                             source_address=self.__address,
-                            id=payload.id,
+                            id=msg.id,
                             address=self.__email_address,
                         )
                     )
                     return
                 if to == "*":
-                    self.__received_emails.append(payload)
-                    await self.__send_message_payload(
+                    self.__received_emails.append(msg)
+                    await self.__send_message(
                         EmailAck(
                             source_address=self.__address,
-                            id=payload.id,
+                            id=msg.id,
                             address=self.__email_address,
                         )
                     )
-                await self.__send_message_payload(payload)
+                await self.__send_message(msg)
 
             case EmailAck():
-                email = next(
-                    filter(lambda e: e.id == payload.id, self.__sent_emails), None
-                )
+                email = next(filter(lambda e: e.id == msg.id, self.__sent_emails), None)
                 if email:
-                    if payload.address not in email.should_receive:
-                        email.should_receive.append(payload.address)
-                    email.have_received.append(payload.address)
+                    if msg.address not in email.should_receive:
+                        email.should_receive.append(msg.address)
+                    email.have_received.append(msg.address)
                     return
-                await self.__send_message_payload(payload)
+                await self.__send_message(msg)
 
-    async def __send_message_payload(self, payload: AppMsgPayload):
-        string = f"{type(payload).__name__}\n{payload.to_json()}"
+    async def __send_message(self, msg: AppMsg):
+        string = f"{type(msg).__name__}\n{msg.to_json()}"
         await self._out_port.send_str(string)
 
 
