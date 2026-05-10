@@ -1,19 +1,9 @@
 import asyncio
 from copy import deepcopy
-from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Callable, Dict, List, Literal, Type, cast
 
 from src.data_link import MsgReq, PFrameH, Port_dtl
-from src.entities.app_events import (
-    AppEvent,
-    EmailGotAck,
-    EmailReceived,
-    EmailSent,
-    PCConnected,
-    PCDisconnected,
-    PortStateChanged,
-)
 from src.entities.email_protocol import (
     AppMsgPayload,
     Email,
@@ -32,14 +22,6 @@ from src.physical import BYTE_ERROR_PROB, PC_phy, PCAddress
 _MAX_SEND_MSG_RETRIES = 8
 
 
-@dataclass
-class PortStates:
-    in_phy_up: bool = False
-    in_dtl_up: bool = False
-    out_phy_up: bool = False
-    out_dtl_up: bool = False
-
-
 class PC_app(PC_phy):
     __TYPE_STR_TO_CLASS: Dict[str, Type[AppMsgPayload]] = {
         c.__name__: c
@@ -56,8 +38,6 @@ class PC_app(PC_phy):
         self.__network_addresses: List[EmailAddress] = []
         self.__sent_emails: List[Email] = []
         self.__received_emails: List[Email] = []
-        self.__port_states = PortStates()
-        self.__events: asyncio.Queue[AppEvent] = asyncio.Queue()
 
     @property
     def name(self) -> str:
@@ -82,9 +62,6 @@ class PC_app(PC_phy):
     @property
     def received_emails(self) -> List[Email]:
         return self.__received_emails
-
-    async def get_event(self) -> AppEvent:
-        return await self.__events.get()
 
     async def data_link_uplink(self, port: Literal["in_port", "out_port"]):
         if port == "in_port":
@@ -119,8 +96,6 @@ class PC_app(PC_phy):
             EmailDisconnect(source_address=self.__address, address=self.__email_address)
         )
         self.__email_address = None
-        for address in self.__network_addresses:
-            await self.__events.put(PCDisconnected(address=address))
         self.__network_addresses.clear()
 
     async def send_email(
@@ -144,7 +119,6 @@ class PC_app(PC_phy):
         email.should_receive = [to] if to != "*" else self.__network_addresses.copy()
         await self.__send_message_payload(email)
         self.__sent_emails.append(email)
-        await self.__events.put(EmailSent(email=email))
 
     async def resend_email(self, id: EmailID, to: EmailAddress):
         all_emails = self.__sent_emails + self.__received_emails
@@ -165,42 +139,12 @@ class PC_app(PC_phy):
         email.have_received.clear()
         await self.__send_message_payload(email)
         self.__sent_emails.append(email)
-        await self.__events.put(EmailSent(email=email))
 
     async def do_app_tick(self):
-        await self.__update_port_states()
         try:
             await self.__try_receive_handle_message()
         except Exception:
             pass
-
-    async def __update_port_states(self):
-        curr_states = self.__port_states
-        new_states = PortStates(
-            in_phy_up=self._in_port.phy_is_up(),
-            in_dtl_up=self._in_port.dtl_is_up(),
-            out_phy_up=self._out_port.phy_is_up(),
-            out_dtl_up=self._out_port.dtl_is_up(),
-        )
-
-        if curr_states.in_phy_up != new_states.in_phy_up:
-            await self.__events.put(
-                PortStateChanged(port="in", layer="phy", is_up=new_states.in_phy_up)
-            )
-        if curr_states.in_dtl_up != new_states.in_dtl_up:
-            await self.__events.put(
-                PortStateChanged(port="in", layer="dtl", is_up=new_states.in_dtl_up)
-            )
-        if curr_states.out_phy_up != new_states.out_phy_up:
-            await self.__events.put(
-                PortStateChanged(port="out", layer="phy", is_up=new_states.out_phy_up)
-            )
-        if curr_states.out_dtl_up != new_states.out_dtl_up:
-            await self.__events.put(
-                PortStateChanged(port="out", layer="dtl", is_up=new_states.out_dtl_up)
-            )
-
-        self.__port_states = new_states
 
     def __get_blank_email(self) -> Email:
         if self.__email_address is None:
@@ -244,7 +188,6 @@ class PC_app(PC_phy):
         match payload:
             case EmailConnect():
                 if payload.address not in self.__network_addresses:
-                    await self.__events.put(PCConnected(address=payload.address))
                     self.__network_addresses.append(payload.address)
                 await self.__send_message_payload(payload)
                 await self.__send_message_payload(
@@ -255,20 +198,17 @@ class PC_app(PC_phy):
 
             case EmailConnectAck():
                 if payload.address not in self.__network_addresses:
-                    await self.__events.put(PCConnected(address=payload.address))
                     self.__network_addresses.append(payload.address)
                 await self.__send_message_payload(payload)
 
             case EmailDisconnect():
                 if payload.address in self.__network_addresses:
-                    await self.__events.put(PCDisconnected(address=payload.address))
                     self.__network_addresses.remove(payload.address)
                 await self.__send_message_payload(payload)
 
             case Email():
                 to = payload.resent_to if payload.resent_to else payload.to
                 if to == self.__email_address:
-                    await self.__events.put(EmailReceived(email=payload))
                     self.__received_emails.append(payload)
                     await self.__send_message_payload(
                         EmailAck(
@@ -279,7 +219,6 @@ class PC_app(PC_phy):
                     )
                     return
                 if to == "*":
-                    await self.__events.put(EmailReceived(email=payload))
                     self.__received_emails.append(payload)
                     await self.__send_message_payload(
                         EmailAck(
@@ -295,9 +234,6 @@ class PC_app(PC_phy):
                     filter(lambda e: e.id == payload.id, self.__sent_emails), None
                 )
                 if email:
-                    await self.__events.put(
-                        EmailGotAck(id=payload.id, address=payload.address)
-                    )
                     if payload.address not in email.should_receive:
                         email.should_receive.append(payload.address)
                     email.have_received.append(payload.address)

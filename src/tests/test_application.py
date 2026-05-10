@@ -4,14 +4,6 @@ import unittest
 from typing import Tuple
 
 from src.application import EmailAddress, PC_app, Port_app
-from src.entities.app_events import (
-    EmailGotAck,
-    EmailReceived,
-    EmailSent,
-    PCConnected,
-    PCDisconnected,
-    PortStateChanged,
-)
 from src.simulation import (
     get_pcs,
     start_network,
@@ -138,26 +130,6 @@ class TestPC_app(unittest.TestCase):
                     other_addresses,
                     f"{pc.name} should have network_addresses {other_addresses}",
                 )
-                self.assertEqual(
-                    (
-                        type(await pc.get_event()),
-                        type(await pc.get_event()),
-                        type(await pc.get_event()),
-                        type(await pc.get_event()),
-                    ),
-                    (
-                        PortStateChanged,
-                        PortStateChanged,
-                        PortStateChanged,
-                        PortStateChanged,
-                    ),
-                    f"{pc.name} should have 4 PortStateChanged events",
-                )
-                self.assertEqual(
-                    (type(await pc.get_event()), type(await pc.get_event())),
-                    (PCConnected, PCConnected),
-                    f"{pc.name} should have 2 PCConnected events",
-                )
 
         self.bg.run_coro(test()).result()
 
@@ -219,47 +191,6 @@ class TestPC_app(unittest.TestCase):
                 f"{self.addresses[2]} should receive email from {self.addresses[0]} with subject '{subject}' body '{body1}'",
             )
 
-            self.assertEqual(
-                type(await self.pcs[0].get_event()),
-                EmailSent,
-                f"{self.addresses[0]} should have EmailSent event",
-            )
-            self.assertEqual(
-                type(await self.pcs[2].get_event()),
-                EmailSent,
-                f"{self.addresses[2]} should have EmailSent event",
-            )
-
-            self.assertEqual(
-                type(await self.pcs[0].get_event()),
-                EmailReceived,
-                f"{self.addresses[0]} should have EmailReceived event",
-            )
-            self.assertEqual(
-                type(await self.pcs[1].get_event()),
-                EmailReceived,
-                f"{self.addresses[1]} should have EmailReceived event",
-            )
-            self.assertEqual(
-                type(await self.pcs[2].get_event()),
-                EmailReceived,
-                f"{self.addresses[2]} should have EmailReceived event",
-            )
-
-            self.assertEqual(
-                type(await self.pcs[0].get_event()),
-                EmailGotAck,
-                f"{self.addresses[0]} should have EmailGotAck event",
-            )
-            self.assertEqual(
-                (
-                    type(await self.pcs[2].get_event()),
-                    type(await self.pcs[2].get_event()),
-                ),
-                (EmailGotAck, EmailGotAck),
-                f"{self.addresses[2]} should have 2 EmailGotAck events",
-            )
-
         self.bg.run_coro(test()).result()
 
     def test_3_network_pcs_disconnect_and_remove_from_internal_network_addresses(
@@ -283,11 +214,6 @@ class TestPC_app(unittest.TestCase):
                     pc.network_addresses,
                     [],
                     f"{pc.name} should have empty network_addresses",
-                )
-                self.assertEqual(
-                    type(await pc.get_event()),
-                    PCDisconnected,
-                    f"{pc.name} should have PCDisconnected event",
                 )
 
         self.bg.run_coro(test()).result()
