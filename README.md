@@ -15,7 +15,7 @@
 
 Симуляция разбита на 3 уровня: физический (RS232, DB9), канальный и прикладной.
 
-Внешний интерфейс - REST API.
+Внешний интерфейс - REST API на FastAPI.
 
 ## Запуск
 
@@ -27,6 +27,14 @@ source ./venv/bin/activate
 pip install -r requirements.txt
 python -m src.main
 ```
+
+Адрес API:
+
+[http://127.0.0.1:8000](http://127.0.0.1:8000)
+
+Адрес Swagger UI документации:
+
+[http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
 
 ### Тесты
 
