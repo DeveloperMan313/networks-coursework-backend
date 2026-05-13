@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, Query
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import AfterValidator
 
 from src import simulation
@@ -19,6 +20,14 @@ from src.entities.api import (
 from src.entities.app_messages import EmailID
 
 app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 def validate_pc_id(value: int) -> int:
