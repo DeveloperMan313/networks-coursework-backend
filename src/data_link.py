@@ -367,14 +367,14 @@ class Port_dtl(Port_phy):
                 self.__consecutive_nacks += 1
                 if self.__consecutive_nacks == _TIMEOUT_NACKS:
                     self.__log_debug("too many consecutive NACKs")
-                    self.__set_state(PS_dtl.STANDBY)
+                    self.__set_state(PS_dtl.INACTIVE)
                     return None
                 if self.__state == PS_dtl.INACTIVE:
                     self.__log_debug("received NACK, ignore because port is INACTIVE")
                     return None
                 if self.__last_sent_chunk is None:
                     self.__log_debug("received NACK, but haven't sent frame")
-                    self.__set_state(PS_dtl.STANDBY)
+                    self.__set_state(PS_dtl.INACTIVE)
                     return None
                 self.__log_debug("received NACK, sending last sent chunk")
                 self.__send_chunk(self.__last_sent_chunk)

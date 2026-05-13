@@ -4,6 +4,7 @@ from asyncio.exceptions import CancelledError
 from uvicorn import Config
 from uvicorn.server import Server
 
+from src.db import db_init
 from src.simulation import get_pcs, start_network, stop_network
 from src.webserver import app
 
@@ -13,6 +14,8 @@ PC_CNT = 3
 async def main():
     config = Config(app=app, host="127.0.0.1", port=8000, log_level="info")
     server = Server(config)
+
+    db_init()
 
     start_network(PC_CNT)
     pcs = get_pcs()

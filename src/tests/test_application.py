@@ -3,7 +3,8 @@ import threading
 import unittest
 from typing import Tuple
 
-from src.application import EmailAddress, PC_app, Port_app
+from src.application import PC_app, Port_app
+from src.entities.email import EmailAddress
 from src.simulation import (
     get_pcs,
     start_network,
@@ -176,17 +177,17 @@ class TestPC_app(unittest.TestCase):
             )
 
             self.assertEqual(
-                (pc1_emails[0].From, pc1_emails[0].subject, pc1_emails[0].body),
+                (pc1_emails[0].sender, pc1_emails[0].subject, pc1_emails[0].body),
                 (self.addresses[2], subject, body2),
                 f"{self.addresses[0]} should receive email from {self.addresses[2]} with subject '{subject}' body '{body2}'",
             )
             self.assertEqual(
-                (pc2_emails[0].From, pc2_emails[0].subject, pc2_emails[0].body),
+                (pc2_emails[0].sender, pc2_emails[0].subject, pc2_emails[0].body),
                 (self.addresses[2], subject, body2),
                 f"{self.addresses[1]} should receive email from {self.addresses[2]} with subject '{subject}' body '{body2}'",
             )
             self.assertEqual(
-                (pc3_emails[0].From, pc3_emails[0].subject, pc3_emails[0].body),
+                (pc3_emails[0].sender, pc3_emails[0].subject, pc3_emails[0].body),
                 (self.addresses[0], subject, body1),
                 f"{self.addresses[2]} should receive email from {self.addresses[0]} with subject '{subject}' body '{body1}'",
             )

@@ -4,17 +4,18 @@ from datetime import datetime, timezone
 from typing import Callable, Dict, List, Literal, Type, cast
 
 from src.data_link import MsgReq, PFrameH, Port_dtl
-from src.entities.email_protocol import (
+from src.db import db_get_pc_emails, db_save_pc_email
+from src.entities.api import EmailBody, EmailSubject
+from src.entities.app_messages import (
     AppMsg,
     Email,
     EmailAck,
     EmailAddress,
-    EmailBody,
     EmailConnect,
     EmailConnectAck,
     EmailDisconnect,
     EmailID,
-    EmailSubject,
+    EmailMsg,
 )
 from src.loggers import app_logger
 from src.physical import BYTE_ERROR_PROB, PC_phy, PCAddress
@@ -25,7 +26,7 @@ _MAX_SEND_MSG_RETRIES = 8
 class PC_app(PC_phy):
     __TYPE_STR_TO_CLASS: Dict[str, Type[AppMsg]] = {
         c.__name__: c
-        for c in [EmailConnect, EmailConnectAck, EmailDisconnect, Email, EmailAck]
+        for c in [EmailConnect, EmailConnectAck, EmailDisconnect, EmailMsg, EmailAck]
     }
 
     def __init__(self, address: PCAddress, byte_error_prob=BYTE_ERROR_PROB):
@@ -96,6 +97,13 @@ class PC_app(PC_phy):
             EmailConnect(source_address=self.__address, address=address)
         )
         self.__email_address = address
+        emails = db_get_pc_emails(self.__address, self.__email_address)
+        for email in emails:
+            author = email.resent_sender if email.resent_sender else email.sender
+            if author == self.__email_address:
+                self.__sent_emails.append(email)
+            else:
+                self.__received_emails.append(email)
 
     async def email_disconnect(self):
         if self.__email_address is None:
@@ -113,6 +121,8 @@ class PC_app(PC_phy):
         body: EmailBody,
         in_reply_to: EmailID | None = None,
     ):
+        if self.__email_address is None:
+            raise RuntimeError("cannot send email while disconnected")
         if in_reply_to is not None and not any(
             e.id == in_reply_to for e in self.__sent_emails
         ):
@@ -120,33 +130,38 @@ class PC_app(PC_phy):
         if to != "*" and to not in self.__network_addresses:
             raise ValueError("to is not in network_addresses")
         email = self.__get_blank_email()
-        email.to = to
+        email.receiver = to
         email.subject = subject
         email.body = body
         email.in_reply_to = in_reply_to
         email.should_receive = [to] if to != "*" else self.__network_addresses.copy()
-        await self.__send_message(email)
+        await self.__send_message(
+            EmailMsg(source_address=self.__address, **email.model_dump())
+        )
         self.__sent_emails.append(email)
+        db_save_pc_email(self.__address, self.__email_address, email)
 
     async def resend_email(self, id: EmailID, to: EmailAddress):
+        if self.__email_address is None:
+            raise RuntimeError("cannot send email while disconnected")
         all_emails = self.__sent_emails + self.__received_emails
         if not any(e.id == id for e in all_emails):
             raise ValueError("id does not match any of emails' IDs")
         if to != "*" and to not in self.__network_addresses:
             raise ValueError("to is not in network_addresses")
-        if self.__email_address is None:
-            raise RuntimeError("cannot send email while disconnected")
         now = datetime.now(timezone.utc)
         email = deepcopy(next(filter(lambda e: e.id == id, all_emails)))
-        email.source_address = self.__address
         email.id = int(now.timestamp() * 1000)
-        email.resent_from = self.__email_address
-        email.resent_to = to
+        email.resent_sender = self.__email_address
+        email.resent_receiver = to
         email.resent_date = now
         email.should_receive = [to] if to != "*" else self.__network_addresses.copy()
         email.have_received.clear()
-        await self.__send_message(email)
+        await self.__send_message(
+            EmailMsg(source_address=self.__address, **email.model_dump())
+        )
         self.__sent_emails.append(email)
+        db_save_pc_email(self.__address, self.__email_address, email)
 
     async def do_app_tick(self):
         try:
@@ -159,14 +174,13 @@ class PC_app(PC_phy):
             raise RuntimeError("cannot send email while disconnected")
         now = datetime.now(timezone.utc)
         email = Email(
-            source_address=self.__address,
             id=int(now.timestamp() * 1000),
-            From=self.__email_address,
-            to="*",
+            sender=self.__email_address,
+            receiver="*",
             date=now,
             in_reply_to=None,
-            resent_from=None,
-            resent_to=None,
+            resent_sender=None,
+            resent_receiver=None,
             resent_date=None,
             subject=" ",
             body="",
@@ -182,7 +196,7 @@ class PC_app(PC_phy):
         string = self._in_port.get_received_str()
         type, msg = string.split("\n", 1)
         msg_class = self.__TYPE_STR_TO_CLASS[type]
-        msg = msg_class.from_json(msg)
+        msg = msg_class.model_validate_json(msg)
 
         # drop message that was sent by this PC
         if msg.source_address == self.__address:
@@ -214,10 +228,11 @@ class PC_app(PC_phy):
                     self.__network_addresses.remove(msg.address)
                 await self.__send_message(msg)
 
-            case Email():
-                to = msg.resent_to if msg.resent_to else msg.to
+            case EmailMsg():
+                to = msg.resent_receiver if msg.resent_receiver else msg.receiver
                 if to == self.__email_address:
                     self.__received_emails.append(msg)
+                    db_save_pc_email(self.__address, self.__email_address, msg)
                     await self.__send_message(
                         EmailAck(
                             source_address=self.__address,
@@ -228,6 +243,7 @@ class PC_app(PC_phy):
                     return
                 if to == "*":
                     self.__received_emails.append(msg)
+                    db_save_pc_email(self.__address, self.__email_address, msg)
                     await self.__send_message(
                         EmailAck(
                             source_address=self.__address,
@@ -243,11 +259,12 @@ class PC_app(PC_phy):
                     if msg.address not in email.should_receive:
                         email.should_receive.append(msg.address)
                     email.have_received.append(msg.address)
+                    db_save_pc_email(self.__address, self.__email_address, email)
                     return
                 await self.__send_message(msg)
 
     async def __send_message(self, msg: AppMsg):
-        string = f"{type(msg).__name__}\n{msg.to_json()}"
+        string = f"{type(msg).__name__}\n{msg.model_dump_json()}"
         await self._out_port.send_str(string)
 
 

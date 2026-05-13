@@ -2,3 +2,4 @@
 *.prof
 __pycache__/
 .zed/
+db.json

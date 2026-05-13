@@ -1,6 +1,7 @@
-from typing import Literal
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, FastAPI, HTTPException
+from pydantic import AfterValidator
 
 from src import simulation
 from src.entities.api import (
@@ -8,16 +9,25 @@ from src.entities.api import (
     GetPCEmailsResponse,
     GetPCPortStatesResponse,
     GetPCsResponse,
-    PCId,
     RegisterPCRequest,
     ResendPCEmailRequest,
     SendPCEmailRequest,
     SetPCPortStateRequest,
     TestPCPortLinkActiveResponse,
 )
-from src.entities.email_protocol import EmailID
+from src.entities.app_messages import EmailID
 
 app = FastAPI()
+
+
+def validate_pc_id(value: int) -> int:
+    pcs_len = len(simulation.get_pcs())
+    if not (1 <= value <= pcs_len):
+        raise ValueError(f"must be 1–{pcs_len}")
+    return value
+
+
+PCId = Annotated[int, AfterValidator(validate_pc_id)]
 
 
 async def validate_registered_pc_id(pc_id: PCId) -> PCId:
@@ -114,8 +124,8 @@ async def test_pc_port_link_active(pc_id: PCId, port: Literal["in", "out"]):
 )
 def get_pc_emails(pc_id: PCId):
     pc = simulation.get_pcs()[pc_id - 1]
-    sent = [Email.from_dataclass(e) for e in pc.sent_emails]
-    received = [Email.from_dataclass(e) for e in pc.received_emails]
+    sent = [Email.model_validate(e) for e in pc.sent_emails]
+    received = [Email.model_validate(e) for e in pc.received_emails]
     return {"sent": sent, "received": received}
 
 
@@ -123,18 +133,22 @@ def get_pc_emails(pc_id: PCId):
 async def send_pc_email(pc_id: PCId, req: SendPCEmailRequest):
     pc = simulation.get_pcs()[pc_id - 1]
     try:
-        await pc.send_email(req.to, req.subject, req.body, req.in_reply_to)
+        await pc.send_email(req.receiver, req.subject, req.body, req.in_reply_to)
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
+    except RuntimeError as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @registered_pcs_router.post("/emails/{email_id}", tags=["Emails"])
 async def resend_pc_email(pc_id: PCId, email_id: EmailID, req: ResendPCEmailRequest):
     pc = simulation.get_pcs()[pc_id - 1]
     try:
-        await pc.resend_email(email_id, req.to)
+        await pc.resend_email(email_id, req.receiver)
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
+    except RuntimeError as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 app.include_router(pcs_router)
