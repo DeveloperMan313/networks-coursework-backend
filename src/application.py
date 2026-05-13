@@ -116,46 +116,63 @@ class PC_app(PC_phy):
 
     async def send_email(
         self,
-        to: EmailAddress,
+        receiver: EmailAddress,
         subject: EmailSubject,
         body: EmailBody,
         in_reply_to: EmailID | None = None,
     ):
-        if self.__email_address is None:
-            raise RuntimeError("cannot send email while disconnected")
-        if in_reply_to is not None and not any(
-            e.id == in_reply_to for e in self.__sent_emails
+        if not (
+            self._in_port.phy_is_up()
+            and self._in_port.dtl_is_up()
+            and self._out_port.phy_is_up()
+            and self._out_port.dtl_is_up()
         ):
-            raise ValueError("in_reply_to does not match any of sent emails' IDs")
-        if to != "*" and to not in self.__network_addresses:
-            raise ValueError("to is not in network_addresses")
+            raise RuntimeError("cannot send email when some ports are disconnected")
+        if self.__email_address is None:
+            raise RuntimeError("cannot send email when PC doesn't have email address")
+        all_emails = self.__sent_emails + self.__received_emails
+        if in_reply_to is not None and not any(e.id == in_reply_to for e in all_emails):
+            raise ValueError("in_reply_to does not match any of emails' IDs")
+        if receiver != "*" and receiver not in self.__network_addresses:
+            raise ValueError("receiver is not in network_addresses")
         email = self.__get_blank_email()
-        email.receiver = to
+        email.receiver = receiver
         email.subject = subject
         email.body = body
         email.in_reply_to = in_reply_to
-        email.should_receive = [to] if to != "*" else self.__network_addresses.copy()
+        email.should_receive = (
+            [receiver] if receiver != "*" else self.__network_addresses.copy()
+        )
         await self.__send_message(
             EmailMsg(source_address=self.__address, **email.model_dump())
         )
         self.__sent_emails.append(email)
         db_save_pc_email(self.__address, self.__email_address, email)
 
-    async def resend_email(self, id: EmailID, to: EmailAddress):
+    async def resend_email(self, id: EmailID, receiver: EmailAddress):
+        if not (
+            self._in_port.phy_is_up()
+            and self._in_port.dtl_is_up()
+            and self._out_port.phy_is_up()
+            and self._out_port.dtl_is_up()
+        ):
+            raise RuntimeError("cannot send email when some ports are disconnected")
         if self.__email_address is None:
-            raise RuntimeError("cannot send email while disconnected")
+            raise RuntimeError("cannot send email when PC doesn't have email address")
         all_emails = self.__sent_emails + self.__received_emails
         if not any(e.id == id for e in all_emails):
             raise ValueError("id does not match any of emails' IDs")
-        if to != "*" and to not in self.__network_addresses:
-            raise ValueError("to is not in network_addresses")
+        if receiver != "*" and receiver not in self.__network_addresses:
+            raise ValueError("receiver is not in network_addresses")
         now = datetime.now(timezone.utc)
         email = deepcopy(next(filter(lambda e: e.id == id, all_emails)))
         email.id = int(now.timestamp() * 1000)
         email.resent_sender = self.__email_address
-        email.resent_receiver = to
+        email.resent_receiver = receiver
         email.resent_date = now
-        email.should_receive = [to] if to != "*" else self.__network_addresses.copy()
+        email.should_receive = (
+            [receiver] if receiver != "*" else self.__network_addresses.copy()
+        )
         email.have_received.clear()
         await self.__send_message(
             EmailMsg(source_address=self.__address, **email.model_dump())
@@ -171,7 +188,7 @@ class PC_app(PC_phy):
 
     def __get_blank_email(self) -> Email:
         if self.__email_address is None:
-            raise RuntimeError("cannot send email while disconnected")
+            raise RuntimeError("cannot send email when PC doesn't have email address")
         now = datetime.now(timezone.utc)
         email = Email(
             id=int(now.timestamp() * 1000),
@@ -229,8 +246,8 @@ class PC_app(PC_phy):
                 await self.__send_message(msg)
 
             case EmailMsg():
-                to = msg.resent_receiver if msg.resent_receiver else msg.receiver
-                if to == self.__email_address:
+                receiver = msg.resent_receiver if msg.resent_receiver else msg.receiver
+                if receiver == self.__email_address:
                     self.__received_emails.append(msg)
                     db_save_pc_email(self.__address, self.__email_address, msg)
                     await self.__send_message(
@@ -241,7 +258,7 @@ class PC_app(PC_phy):
                         )
                     )
                     return
-                if to == "*":
+                if receiver == "*":
                     self.__received_emails.append(msg)
                     db_save_pc_email(self.__address, self.__email_address, msg)
                     await self.__send_message(
@@ -307,6 +324,8 @@ class Port_app(Port_dtl):
             self.__response_callbacks.append(callback)
             success = await future
             if not success:
+                if not self.dtl_is_up():
+                    await self.__send_message("UPLINK")
                 retries += 1
                 continue
             self.__log_debug("successfully sent string")
@@ -337,6 +356,8 @@ class Port_app(Port_dtl):
             self.__response_callbacks.append(callback)
             success = await future
             if not success:
+                if msg != "UPLINK" and not self.dtl_is_up():
+                    await self.__send_message("UPLINK")
                 retries += 1
                 continue
             self.__log_debug(f"successfully sent {msg}")
