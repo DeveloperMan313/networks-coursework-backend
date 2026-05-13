@@ -77,14 +77,17 @@ class PC_app(PC_phy):
             await self._in_port.data_link_uplink()
         if port == "out":
             await self._out_port.data_link_uplink()
+        self.__log_info(f"port {port} dtl UPLINK")
 
     async def data_link_downlink(self, port: Literal["in", "out"]):
         if port == "in":
             await self._in_port.data_link_downlink()
         if port == "out":
             await self._out_port.data_link_downlink()
+        self.__log_info(f"port {port} dtl DOWNLINK")
 
     async def data_link_active(self, port: Literal["in", "out"]) -> bool:
+        self.__log_info(f"port {port} dtl LINKACTIVE")
         if port == "in":
             return await self._in_port.data_link_active()
         if port == "out":
@@ -104,6 +107,7 @@ class PC_app(PC_phy):
                 self.__sent_emails.append(email)
             else:
                 self.__received_emails.append(email)
+        self.__log_info(f'connected email "{self.__email_address}"')
 
     async def email_disconnect(self):
         if self.__email_address is None:
@@ -111,6 +115,7 @@ class PC_app(PC_phy):
         await self.__send_message(
             EmailDisconnect(source_address=self.__address, address=self.__email_address)
         )
+        self.__log_info(f'disconnected email "{self.__email_address}"')
         self.__email_address = None
         self.__network_addresses.clear()
 
@@ -148,6 +153,7 @@ class PC_app(PC_phy):
         )
         self.__sent_emails.append(email)
         db_save_pc_email(self.__address, self.__email_address, email)
+        self.__log_info(f'sent email (id {email.id}) to "{receiver}"')
 
     async def resend_email(self, id: EmailID, receiver: EmailAddress):
         if not (
@@ -179,12 +185,21 @@ class PC_app(PC_phy):
         )
         self.__sent_emails.append(email)
         db_save_pc_email(self.__address, self.__email_address, email)
+        self.__log_info(f'sent email (id {email.id}) to "{receiver}"')
 
     async def do_app_tick(self):
         try:
             await self.__try_receive_handle_message()
         except Exception as e:
             print(e)
+
+    def connect_port(self, port: Literal["in", "out"]):
+        super().connect_port(port)
+        self.__log_info(f"port {port} phy connected")
+
+    def disconnect_port(self, port: Literal["in", "out"]):
+        super().disconnect_port(port)
+        self.__log_info(f"port {port} phy disconnected")
 
     def __get_blank_email(self) -> Email:
         if self.__email_address is None:
@@ -250,6 +265,7 @@ class PC_app(PC_phy):
                 if receiver == self.__email_address:
                     self.__received_emails.append(msg)
                     db_save_pc_email(self.__address, self.__email_address, msg)
+                    self.__log_info(f'received email (id {msg.id}) from "{msg.sender}"')
                     await self.__send_message(
                         EmailAck(
                             source_address=self.__address,
@@ -261,6 +277,7 @@ class PC_app(PC_phy):
                 if receiver == "*":
                     self.__received_emails.append(msg)
                     db_save_pc_email(self.__address, self.__email_address, msg)
+                    self.__log_info(f'received email (id {msg.id}) from "{msg.sender}"')
                     await self.__send_message(
                         EmailAck(
                             source_address=self.__address,
@@ -283,6 +300,9 @@ class PC_app(PC_phy):
     async def __send_message(self, msg: AppMsg):
         string = f"{type(msg).__name__}\n{msg.model_dump_json()}"
         await self._out_port.send_str(string)
+
+    def __log_info(self, msg: object):
+        app_logger.info("PC%s: %s", self.__address, msg)
 
 
 class Port_app(Port_dtl):

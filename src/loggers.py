@@ -17,3 +17,5 @@ def _get_logger_for_OSI_layer(OSI_layer: str) -> Logger:
 phy_logger = _get_logger_for_OSI_layer("phy")
 dtl_logger = _get_logger_for_OSI_layer("dtl")
 app_logger = _get_logger_for_OSI_layer("app")
+
+app_logger.setLevel("INFO")
