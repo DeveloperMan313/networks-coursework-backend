@@ -1,6 +1,7 @@
+from datetime import datetime, timezone
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, FastAPI, HTTPException
+from fastapi import APIRouter, Depends, FastAPI, HTTPException, Query
 from pydantic import AfterValidator
 
 from src import simulation
@@ -120,12 +121,26 @@ async def test_pc_port_link_active(pc_id: PCId, port: Literal["in", "out"]):
 
 
 @registered_pcs_router.get(
-    "/emails", response_model=GetPCEmailsResponse, tags=["Emails"]
+    "/emails",
+    response_model=GetPCEmailsResponse,
+    description="newer_than is not inclusive",
+    tags=["Emails"],
 )
-def get_pc_emails(pc_id: PCId):
+def get_pc_emails(
+    pc_id: PCId,
+    newer_than: datetime = Query(datetime.fromtimestamp(0, tz=timezone.utc)),
+):
     pc = simulation.get_pcs()[pc_id - 1]
-    sent = [Email.model_validate(e) for e in pc.sent_emails]
-    received = [Email.model_validate(e) for e in pc.received_emails]
+    sent = [
+        Email.model_validate(e)
+        for e in pc.sent_emails
+        if (e.resent_date if e.resent_date else e.date) > newer_than
+    ]
+    received = [
+        Email.model_validate(e)
+        for e in pc.received_emails
+        if (e.resent_date if e.resent_date else e.date) > newer_than
+    ]
     return {"sent": sent, "received": received}
 
 
