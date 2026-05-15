@@ -61,7 +61,7 @@ def get_pcs():
     return {"pcs": {pc.address: pc.email_address for pc in pcs}}
 
 
-@pcs_router.put("/register", tags=["PCs"])
+@pcs_router.put("/register", status_code=204, tags=["PCs"])
 async def register_pc(pc_id: PCId, req: RegisterPCRequest):
     pcs = simulation.get_pcs()
     pc = pcs[pc_id - 1]
@@ -77,7 +77,7 @@ async def register_pc(pc_id: PCId, req: RegisterPCRequest):
         raise HTTPException(status_code=422, detail=str(e))
 
 
-@registered_pcs_router.put("/unregister", tags=["PCs"])
+@registered_pcs_router.put("/unregister", status_code=204, tags=["PCs"])
 async def unregister_pc(pc_id: PCId):
     pc = simulation.get_pcs()[pc_id - 1]
     try:
@@ -94,6 +94,7 @@ def get_pc_port_states(pc_id: PCId):
 
 @pcs_router.put(
     "/ports/{port}/{layer}",
+    status_code=204,
     description="Not idempotent, changing state to itself will cause error",
     tags=["Ports"],
 )
@@ -153,7 +154,7 @@ def get_pc_emails(
     return {"sent": sent, "received": received}
 
 
-@registered_pcs_router.post("/emails", tags=["Emails"])
+@registered_pcs_router.post("/emails", status_code=201, tags=["Emails"])
 async def send_pc_email(pc_id: PCId, req: SendPCEmailRequest):
     pc = simulation.get_pcs()[pc_id - 1]
     try:
@@ -164,7 +165,7 @@ async def send_pc_email(pc_id: PCId, req: SendPCEmailRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@registered_pcs_router.post("/emails/{email_id}", tags=["Emails"])
+@registered_pcs_router.post("/emails/{email_id}", status_code=201, tags=["Emails"])
 async def resend_pc_email(pc_id: PCId, email_id: EmailID, req: ResendPCEmailRequest):
     pc = simulation.get_pcs()[pc_id - 1]
     try:
