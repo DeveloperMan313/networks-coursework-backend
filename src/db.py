@@ -7,7 +7,7 @@ from src.physical import PCAddress
 
 DB_FNAME = "db.json"
 
-_db: Dict[PCAddress, Dict[EmailAddress, List[Email]]] = {}
+_db: Dict[str, Dict[EmailAddress, List[Email]]] = {}
 
 _db_active: bool = False
 
@@ -16,7 +16,7 @@ def db_init():
     global _db, _db_active
     if os.path.exists(DB_FNAME) and os.path.isfile(DB_FNAME):
         with open(DB_FNAME, "r") as f:
-            data: Dict[PCAddress, Dict[EmailAddress, List[str]]] = json.load(f)
+            data: Dict[str, Dict[EmailAddress, List[str]]] = json.load(f)
             _db = {
                 pc_addr: {
                     email_addr: [Email.model_validate_json(e) for e in email_jsons]
@@ -37,15 +37,16 @@ def db_get_pc_emails(address: PCAddress, email_address: EmailAddress) -> List[Em
 def db_save_pc_email(address: PCAddress, email_address: EmailAddress, email: Email):
     if not _db_active:
         return
-    if address not in _db:
-        _db[address] = {}
-    if email_address not in _db[address]:
-        _db[address][email_address] = []
-    _db[address][email_address] = [
-        e for e in _db[address][email_address] if e.id != email.id
+    address_s = str(address)
+    if address_s not in _db:
+        _db[address_s] = {}
+    if email_address not in _db[address_s]:
+        _db[address_s][email_address] = []
+    _db[address_s][email_address] = [
+        e for e in _db[address_s][email_address] if e.id != email.id
     ]
-    _db[address][email_address].append(email)
-    data: Dict[PCAddress, Dict[EmailAddress, List[str]]] = {
+    _db[address_s][email_address].append(email)
+    data: Dict[str, Dict[EmailAddress, List[str]]] = {
         pc_addr: {
             email_addr: [e.model_dump_json() for e in emails]
             for email_addr, emails in pc_emails.items()

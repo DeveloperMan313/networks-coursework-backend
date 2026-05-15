@@ -107,7 +107,7 @@ class PC_app(PC_phy):
                 self.__sent_emails.append(email)
             else:
                 self.__received_emails.append(email)
-        self.__log_info(f'connected email "{self.__email_address}"')
+        self.__log_info(f'connected email address "{self.__email_address}"')
 
     async def email_disconnect(self):
         if self.__email_address is None:
@@ -115,7 +115,7 @@ class PC_app(PC_phy):
         await self.__send_message(
             EmailDisconnect(source_address=self.__address, address=self.__email_address)
         )
-        self.__log_info(f'disconnected email "{self.__email_address}"')
+        self.__log_info(f'disconnected email address "{self.__email_address}"')
         self.__email_address = None
         self.__network_addresses.clear()
 
