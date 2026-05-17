@@ -121,7 +121,7 @@ class PC_app(PC_phy):
 
     async def send_email(
         self,
-        receiver: EmailAddress,
+        receiver: EmailAddress | None,
         subject: EmailSubject,
         body: EmailBody,
         in_reply_to: EmailID | None = None,
@@ -136,8 +136,12 @@ class PC_app(PC_phy):
         if self.__email_address is None:
             raise RuntimeError("cannot send email when PC doesn't have email address")
         all_emails = self.__sent_emails + self.__received_emails
+        if int(receiver is not None) + int(in_reply_to is not None) != 1:
+            raise ValueError("only one of receiver, in_reply_to should be specified")
         if in_reply_to is not None and not any(e.id == in_reply_to for e in all_emails):
             raise ValueError("in_reply_to does not match any of emails' IDs")
+        if in_reply_to is not None:
+            receiver = next(filter(lambda e: e.id == in_reply_to, all_emails)).sender
         if receiver != "*" and receiver not in self.__network_addresses:
             raise ValueError("receiver is not in network_addresses")
         email = self.__get_blank_email()

@@ -35,7 +35,7 @@ class GetPCEmailsResponse(BaseModel):
 
 
 class SendPCEmailRequest(BaseModel):
-    receiver: EmailAddress
+    receiver: EmailAddress | None = None
     subject: EmailSubject
     body: EmailBody
     in_reply_to: EmailID | None = None
