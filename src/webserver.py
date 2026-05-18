@@ -10,6 +10,7 @@ from src.entities.api import (
     Email,
     GetPCEmailsResponse,
     GetPCPortStatesResponse,
+    GetPCResponse,
     GetPCsResponse,
     RegisterPCRequest,
     ResendPCEmailRequest,
@@ -55,7 +56,12 @@ registered_pcs_router = APIRouter(
 )
 
 
-@app.get("/pcs", response_model=GetPCsResponse, tags=["PCs"])
+@app.get(
+    "/pcs",
+    response_model=GetPCsResponse,
+    description="Returned data does not represent current simulation state as seen from PCs. PCs data updates with delay relative to this data.",
+    tags=["PCs"],
+)
 def get_pcs():
     pcs = simulation.get_pcs()
     return {"pcs": {pc.address: pc.email_address for pc in pcs}}
@@ -75,6 +81,12 @@ async def register_pc(pc_id: PCId, req: RegisterPCRequest):
         await pc.email_connect(req.address)
     except RuntimeError as e:
         raise HTTPException(status_code=422, detail=str(e))
+
+
+@registered_pcs_router.get("", response_model=GetPCResponse, tags=["PCs"])
+def get_pc(pc_id: PCId):
+    pc = simulation.get_pcs()[pc_id - 1]
+    return {"address": pc.email_address, "network_addresses": pc.network_addresses}
 
 
 @registered_pcs_router.put("/unregister", status_code=204, tags=["PCs"])

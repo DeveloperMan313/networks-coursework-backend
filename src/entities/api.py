@@ -14,6 +14,11 @@ class RegisterPCRequest(BaseModel):
     address: EmailAddress
 
 
+class GetPCResponse(BaseModel):
+    address: EmailAddress
+    network_addresses: List[EmailAddress]
+
+
 class GetPCPortStatesResponse(BaseModel):
     in_phy_up: bool
     in_dtl_up: bool
