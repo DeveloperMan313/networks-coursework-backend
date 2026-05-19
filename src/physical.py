@@ -1,7 +1,7 @@
 from enum import Enum, auto
 from queue import Queue
 from random import randint, random
-from typing import Dict, Literal, Union
+from typing import Dict, Literal
 
 from src.loggers import phy_logger
 
@@ -80,7 +80,7 @@ class PS_phy(Enum):
 class Port_phy:
     def __init__(self, name: str, byte_error_prob=BYTE_ERROR_PROB):
         self._name = name
-        self._byte_error_prob = byte_error_prob
+        self.__byte_error_prob = byte_error_prob
         self.__pins: Dict[PinName, bool] = {
             "DCD": False,
             "RXD": False,
@@ -89,7 +89,7 @@ class Port_phy:
             "RTS": False,
             "CTS": False,
         }
-        self.__connected_port: Union[Port_phy, None] = None
+        self.__connected_port: Port_phy | None = None
         self.__state = PS_phy.INACTIVE
         self.__timer: int = 0
         self.__send_buffer: Queue[int] = Queue()
@@ -177,6 +177,7 @@ class Port_phy:
             case PS_phy.INACTIVE:
                 if self._get_pin("DCD"):
                     self.__set_state(PS_phy.STANDBY)
+
             case PS_phy.STANDBY:
                 if self._get_pin("CTS"):
                     self.__set_pin("RTS", True)
@@ -184,22 +185,26 @@ class Port_phy:
                     return
                 if not self.__send_buffer.empty():
                     self.__current_byte = self.__send_buffer.get()
-                    if random() < self._byte_error_prob:
+                    if random() < self.__byte_error_prob:
                         err_idx = randint(0, 7)
                         self.__current_byte ^= 1 << err_idx
                     self.__set_pin("TXD", True)
                     self.__set_pin("RTS", True)
                     self.__set_state(PS_phy.TX_RTS)
+
             case PS_phy.TX_RTS:
                 self.__set_state(PS_phy.TX_AWAIT_CTS)
+
             case PS_phy.TX_AWAIT_CTS:
                 if not self._get_pin("CTS"):
                     return
                 self.__set_pin("TXD", False)
                 self.__set_state(PS_phy.TX_START_BIT)
+
             case PS_phy.TX_START_BIT:
                 self.__current_bit_mask = 1
                 self.__set_state(PS_phy.TX_BYTE)
+
             case PS_phy.TX_BYTE:
                 if self.__current_bit_mask == 256:
                     self.__set_pin("RTS", False)
@@ -210,19 +215,23 @@ class Port_phy:
                     "TXD", bool(self.__current_byte & self.__current_bit_mask)
                 )
                 self.__current_bit_mask <<= 1
+
             case PS_phy.RX_CTS:
                 self.__set_state(PS_phy.RX_AWAIT_RXD)
                 self.__timer = 1  # high precision override
+
             case PS_phy.RX_AWAIT_RXD:
                 if self._get_pin("RXD"):
                     self.__timer = 1  # high precision override
                     return
                 self.__set_state(PS_phy.RX_SYNC)
+
             case PS_phy.RX_SYNC:
                 self.__current_byte = 0
                 self.__current_bit_mask = 1
                 self.__timer += TPB // 2
                 self.__set_state(PS_phy.RX_BYTE)
+
             case PS_phy.RX_BYTE:
                 if self.__current_bit_mask == 256:
                     self.__receive_buffer.put(self.__current_byte)

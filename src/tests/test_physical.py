@@ -71,7 +71,7 @@ class TestPort_phy(unittest.TestCase):
                 portA = port1
                 portB = port2
             portA._enqueue_send_byte(byte)
-            while not portB._has_received_bytes():
+            while not portB._has_received_bytes:
                 portA.do_tick()
                 portB.do_tick()
             self.assertEqual(

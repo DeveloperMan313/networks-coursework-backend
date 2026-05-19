@@ -147,6 +147,7 @@ class Port_dtl(Port_phy):
                     self.__send_str_buffer.get()
                     fail_res = MsgRes(PFrameH.DATA, False)
                     self.__put_to_receive_buffer(fail_res)
+
             case PS_dtl.STANDBY:
                 head = self.__try_receive_1chunk_frame()
                 if head:
@@ -199,6 +200,7 @@ class Port_dtl(Port_phy):
                     self.__current_request = PFrameH.DATA
                     self.__send_1chunk_frame(PFrameH.DATASTART)
                     self.__set_state(PS_dtl.TX_DATASTART_AWAIT_ACK)
+
             case PS_dtl.TX_UPLINK_AWAIT_ACK:
                 self.__ticks_waiting += 1
                 head = self.__try_receive_1chunk_frame()
@@ -211,6 +213,7 @@ class Port_dtl(Port_phy):
                 self.__current_request = None
                 self.__put_to_receive_buffer(success_res)
                 self.__set_state(PS_dtl.STANDBY)
+
             case PS_dtl.TX_DOWNLINK_AWAIT_ACK:
                 self.__ticks_waiting += 1
                 head = self.__try_receive_1chunk_frame()
@@ -223,6 +226,7 @@ class Port_dtl(Port_phy):
                 self.__current_request = None
                 self.__put_to_receive_buffer(success_res)
                 self.__set_state(PS_dtl.INACTIVE)
+
             case PS_dtl.TX_LINKACTIVE_AWAIT_ACK:
                 self.__ticks_waiting += 1
                 head = self.__try_receive_1chunk_frame()
@@ -235,6 +239,7 @@ class Port_dtl(Port_phy):
                 self.__current_request = None
                 self.__put_to_receive_buffer(success_res)
                 self.__set_state(PS_dtl.STANDBY)
+
             case PS_dtl.TX_DATASTART_AWAIT_ACK:
                 self.__ticks_waiting += 1
                 head = self.__try_receive_1chunk_frame()
@@ -244,6 +249,7 @@ class Port_dtl(Port_phy):
                     self.__send_1chunk_frame(PFrameH.NACK)
                     return
                 self.__set_state(PS_dtl.TX_DATA_SEND_HEAD_OR_END)
+
             case PS_dtl.TX_DATA_SEND_HEAD_OR_END:
                 if not self.__current_str_chunks:
                     self.__send_1chunk_frame(PFrameH.DATAEND)
@@ -252,6 +258,7 @@ class Port_dtl(Port_phy):
                 self.__current_data_chunk = self.__current_str_chunks.pop(0)
                 self.__send_1chunk_frame(PFrameH.DATA)
                 self.__set_state(PS_dtl.TX_DATA_HEAD_AWAIT_ACK)
+
             case PS_dtl.TX_DATA_HEAD_AWAIT_ACK:
                 self.__ticks_waiting += 1
                 head = self.__try_receive_1chunk_frame()
@@ -263,6 +270,7 @@ class Port_dtl(Port_phy):
                 # set MSB to 1 for data chunk
                 self.__send_chunk(0b1000 ^ self.__current_data_chunk)
                 self.__set_state(PS_dtl.TX_DATA_DATA_AWAIT_ACK)
+
             case PS_dtl.TX_DATA_DATA_AWAIT_ACK:
                 self.__ticks_waiting += 1
                 head = self.__try_receive_1chunk_frame()
@@ -272,6 +280,7 @@ class Port_dtl(Port_phy):
                     self.__send_1chunk_frame(PFrameH.NACK)
                     return
                 self.__set_state(PS_dtl.TX_DATA_SEND_HEAD_OR_END)
+
             case PS_dtl.TX_DATAEND_AWAIT_ACK:
                 self.__ticks_waiting += 1
                 head = self.__try_receive_1chunk_frame()
@@ -284,6 +293,7 @@ class Port_dtl(Port_phy):
                 self.__current_request = None
                 self.__put_to_receive_buffer(success_res)
                 self.__set_state(PS_dtl.STANDBY)
+
             case PS_dtl.RX_DATA_AWAIT_HEAD_OR_END:
                 self.__ticks_waiting += 1
                 head = self.__try_receive_1chunk_frame()
@@ -316,6 +326,7 @@ class Port_dtl(Port_phy):
                         self.__receive_str_buffer.put(string)
                         self.__send_1chunk_frame(PFrameH.ACK)
                         self.__set_state(PS_dtl.STANDBY)
+
             case PS_dtl.RX_DATA_AWAIT_DATA:
                 self.__ticks_waiting += 1
                 chunk = self.__try_receive_chunk()
@@ -337,7 +348,7 @@ class Port_dtl(Port_phy):
             self.__last_sent_chunk = raw_chunk
 
         raw_chunk_shifted = raw_chunk << Port_dtl.__POLY_SHIFT
-        encoded_chunk = (raw_chunk_shifted) + Port_dtl.divide_polynoms_remainder(
+        encoded_chunk = (raw_chunk_shifted) + Port_dtl.__divide_polynoms_remainder(
             raw_chunk_shifted, Port_dtl.__GEN_POLY_7_4
         )
         self.__log_debug(
@@ -350,13 +361,13 @@ class Port_dtl(Port_phy):
         self.__send_chunk(head.value)
 
     def __try_receive_chunk(self) -> int | None:
-        if not self._has_received_bytes():
+        if not self._has_received_bytes:
             return None
 
         self.__ticks_waiting = 0
 
         encoded_chunk = self._get_received_byte()
-        syndrome = Port_dtl.divide_polynoms_remainder(
+        syndrome = Port_dtl.__divide_polynoms_remainder(
             encoded_chunk, Port_dtl.__GEN_POLY_7_4
         )
         raw_chunk = encoded_chunk >> Port_dtl.__POLY_SHIFT
@@ -428,7 +439,7 @@ class Port_dtl(Port_phy):
         return True
 
     @staticmethod
-    def divide_polynoms_remainder(dividend: int, divisor: int) -> int:
+    def __divide_polynoms_remainder(dividend: int, divisor: int) -> int:
         if dividend == 0:
             return 0
 
