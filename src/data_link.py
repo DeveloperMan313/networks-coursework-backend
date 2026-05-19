@@ -53,6 +53,9 @@ class MsgRes:
             return False
         return self.req == value.req and self.success == value.success
 
+    def __str__(self) -> str:
+        return f"{self.req}: {'success' if self.success else 'fail'}"
+
 
 class Port_dtl(Port_phy):
     __GEN_POLY_7_4 = 0b1011
@@ -424,9 +427,7 @@ class Port_dtl(Port_phy):
 
     def __put_to_receive_buffer(self, res: MsgRes):
         self.__receive_buffer.put(res)
-        self.__log_debug(
-            f"put response to receive buffer: {res} {'' if res.success else 'un'}successful"
-        )
+        self.__log_debug(f"put response to receive buffer: {res}")
 
     def __frame_head_must_be_of(
         self, head: PFrameH, acceptable: Tuple[PFrameH, ...]
