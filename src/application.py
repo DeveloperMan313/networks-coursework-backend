@@ -64,12 +64,13 @@ class PC_app(PC_phy):
     def received_emails(self) -> List[Email]:
         return self.__received_emails
 
-    def get_port_states(self) -> Dict[str, bool]:
+    @property
+    def port_states(self) -> Dict[str, bool]:
         return {
-            "in_phy_up": self._in_port.phy_is_up(),
-            "in_dtl_up": self._in_port.dtl_is_up(),
-            "out_phy_up": self._out_port.phy_is_up(),
-            "out_dtl_up": self._out_port.dtl_is_up(),
+            "in_phy_up": self._in_port.phy_is_up,
+            "in_dtl_up": self._in_port.dtl_is_up,
+            "out_phy_up": self._out_port.phy_is_up,
+            "out_dtl_up": self._out_port.dtl_is_up,
         }
 
     async def data_link_uplink(self, port: Literal["in", "out"]):
@@ -127,10 +128,10 @@ class PC_app(PC_phy):
         in_reply_to: EmailID | None = None,
     ):
         if not (
-            self._in_port.phy_is_up()
-            and self._in_port.dtl_is_up()
-            and self._out_port.phy_is_up()
-            and self._out_port.dtl_is_up()
+            self._in_port.phy_is_up
+            and self._in_port.dtl_is_up
+            and self._out_port.phy_is_up
+            and self._out_port.dtl_is_up
         ):
             raise RuntimeError("cannot send email when some ports are disconnected")
         if self.__email_address is None:
@@ -161,10 +162,10 @@ class PC_app(PC_phy):
 
     async def resend_email(self, id: EmailID, receiver: EmailAddress):
         if not (
-            self._in_port.phy_is_up()
-            and self._in_port.dtl_is_up()
-            and self._out_port.phy_is_up()
-            and self._out_port.dtl_is_up()
+            self._in_port.phy_is_up
+            and self._in_port.dtl_is_up
+            and self._out_port.phy_is_up
+            and self._out_port.dtl_is_up
         ):
             raise RuntimeError("cannot send email when some ports are disconnected")
         if self.__email_address is None:
@@ -226,7 +227,7 @@ class PC_app(PC_phy):
         return email
 
     async def __try_receive_handle_message(self):
-        if not self._in_port.has_received_str():
+        if not self._in_port.has_received_str:
             return
 
         string = self._in_port.get_received_str()
@@ -315,12 +316,12 @@ class Port_app(Port_dtl):
         self.__response_callbacks: List[Callable[[bool], None]] = []
 
     async def data_link_uplink(self):
-        if self.dtl_is_up():
+        if self.dtl_is_up:
             raise RuntimeError("data link already up")
         await self.__send_message("UPLINK")
 
     async def data_link_downlink(self):
-        if not self.dtl_is_up():
+        if not self.dtl_is_up:
             raise RuntimeError("data link already down")
         await self.__send_message("DOWNLINK")
 
@@ -348,7 +349,7 @@ class Port_app(Port_dtl):
             self.__response_callbacks.append(callback)
             success = await future
             if not success:
-                if not self.dtl_is_up():
+                if not self.dtl_is_up:
                     await self.__send_message("UPLINK")
                 retries += 1
                 continue
@@ -380,7 +381,7 @@ class Port_app(Port_dtl):
             self.__response_callbacks.append(callback)
             success = await future
             if not success:
-                if msg != "UPLINK" and not self.dtl_is_up():
+                if msg != "UPLINK" and not self.dtl_is_up:
                     await self.__send_message("UPLINK")
                 retries += 1
                 continue
@@ -388,7 +389,7 @@ class Port_app(Port_dtl):
             return
 
     def __try_receive_handle_response(self):
-        if not self._has_response():
+        if not self._has_response:
             return
         response = self._get_response()
         callback = self.__response_callbacks.pop(0)

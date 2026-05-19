@@ -73,14 +73,20 @@ class Port_dtl(Port_phy):
         self.__current_data_chunk: int = 0
         self.__current_request: MsgReq | Literal[PFrameH.DATA] | None = None
 
+    @property
     def dtl_is_up(self) -> bool:
         return self.__state != PS_dtl.INACTIVE
 
-    def get_received_str(self) -> str:
-        return self.__receive_str_buffer.get(block=False)
-
+    @property
     def has_received_str(self) -> bool:
         return not self.__receive_str_buffer.empty()
+
+    @property
+    def _has_response(self) -> bool:
+        return not self.__receive_buffer.empty()
+
+    def get_received_str(self) -> str:
+        return self.__receive_str_buffer.get(block=False)
 
     def do_tick(self):
         super().do_tick()
@@ -99,9 +105,6 @@ class Port_dtl(Port_phy):
 
     def _get_response(self) -> MsgRes:
         return self.__receive_buffer.get(block=False)
-
-    def _has_response(self) -> bool:
-        return not self.__receive_buffer.empty()
 
     def __change_state(self):
         self.__timer = TPB + randint(-TIMER_MAX_ERROR, TIMER_MAX_ERROR)

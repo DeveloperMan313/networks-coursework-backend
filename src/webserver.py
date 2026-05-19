@@ -101,7 +101,7 @@ async def unregister_pc(pc_id: PCId):
 @pcs_router.get("/ports", response_model=GetPCPortStatesResponse, tags=["Ports"])
 def get_pc_port_states(pc_id: PCId):
     pc = simulation.get_pcs()[pc_id - 1]
-    return pc.get_port_states()
+    return pc.port_states
 
 
 @pcs_router.put(

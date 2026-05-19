@@ -97,8 +97,13 @@ class Port_phy:
         self.__current_byte: int = 0
         self.__current_bit_mask: int = 1
 
+    @property
     def phy_is_up(self) -> bool:
         return self.__state != PS_phy.INACTIVE
+
+    @property
+    def _has_received_bytes(self) -> bool:
+        return not self.__receive_buffer.empty()
 
     def connect(self, port: "Port_phy"):
         if self.__connected_port:
@@ -145,9 +150,6 @@ class Port_phy:
 
     def _get_received_byte(self) -> int:
         return self.__receive_buffer.get(block=False)
-
-    def _has_received_bytes(self) -> bool:
-        return not self.__receive_buffer.empty()
 
     def _get_pin(self, pin: PinName) -> bool:  # must be accessible from tests
         if self.__connected_port:
